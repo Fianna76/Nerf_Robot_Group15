@@ -6,6 +6,15 @@
 #include <Adafruit_MMA8451.h>
 #include <Adafruit_Sensor.h>
 
+//TODO: I'm factoring this code to work off my UNO cause that's how my IDE is configured right now
+//      Need to change the pinouts to work with the NANO 
+
+// Create an MMA8451 instance - tilt sensor 
+Adafruit_MMA8451 mma = Adafruit_MMA8451();
+
+// mma pins
+int SCL = A5; // Serial Clock
+int SDA = A4; // Serial Data
 
 // Joystick pins
 int joystickXPin = A0;
@@ -19,7 +28,7 @@ int rotationServoPos, tiltServoPos;
 // Joystick values
 int joystickXVal, joystickYVal;
 
-// Servo pins
+// Servo pins - Are these digital 
 int rotationServoPin = 5;
 int tiltServoPin = 3;
 int firingServoPin = 10;
@@ -86,14 +95,27 @@ void firingLoop(bool buttonPressed) {
 }
 
 void setup() {
+  // Serial connection for debugging
+  Serial.begin(9600);
+  
   // Setup joystick and servos
   joystickSetup();
   pinMode(ButtonPin, INPUT_PULLUP);
   firingServo.attach(firingServoPin);
   firingServo.write(90);
 
-  // Serial connection for debugging
-  Serial.begin(9600);
+   // Initialize MMA8451
+   if (!mma.begin()) 
+   {
+      Serial.println("Could not find MMA8451 accelerometer. Check wiring!");
+      while (1);
+  }
+
+  Serial.println("MMA8451 found!");
+
+  // Set sensor to 2G range (can be 2, 4, or 8G) | TODO: Decide what range we want - 2G should be fine though
+  mma.setRange(MMA8451_RANGE_2_G); 
+  
 }
 
 void loop() {
@@ -108,6 +130,7 @@ void loop() {
   joystickLoop(joystickXVal, joystickYVal);
 
   // Tilt / track movement
+  tiltLoop();
 }
 
 void tiltLoop()
@@ -126,5 +149,5 @@ void tiltRead()
     Serial.print(" | Z: "); Serial.print(mma.z / 4096.0); Serial.println(" m/s²");
 
     //TODO: Determine ideal delay - 9600 Baud is probably a much higher refresh rate then we actually need for this
-    delay(500)
+    delay(500);
 }
