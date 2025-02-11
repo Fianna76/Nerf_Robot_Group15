@@ -1,4 +1,7 @@
+#include <Arduino.h>
 #include <Servo.h>
+#include <Wire.h>
+#include <SPI.h>
 
 
 //All joystick values
