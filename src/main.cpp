@@ -1,4 +1,11 @@
+#include <Arduino.h>
 #include <Servo.h>
+#include <Wire.h>
+#include <SPI.h>
+
+#include <Adafruit_MMA8451.h>
+#include <Adafruit_Sensor.h>
+
 
 // Joystick pins
 int joystickXPin = A0;
@@ -99,4 +106,25 @@ void loop() {
 
   // Control turret movement
   joystickLoop(joystickXVal, joystickYVal);
+
+  // Tilt / track movement
+}
+
+void tiltLoop()
+{
+    tiltRead();
+}
+
+void tiltRead()
+{
+    // Read new data
+    mma.read();
+    
+    // Get acceleration values (X, Y, Z)
+    Serial.print("X: "); Serial.print(mma.x / 4096.0); Serial.print(" m/s²");
+    Serial.print(" | Y: "); Serial.print(mma.y / 4096.0); Serial.print(" m/s²");
+    Serial.print(" | Z: "); Serial.print(mma.z / 4096.0); Serial.println(" m/s²");
+
+    //TODO: Determine ideal delay - 9600 Baud is probably a much higher refresh rate then we actually need for this
+    delay(500)
 }
