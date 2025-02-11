@@ -4,57 +4,40 @@
 #include <SPI.h>
 
 
-//All joystick values
-//joystick pins
-int xPin = A0;
-int yPin = A1;
-int buttonPin = 2;
-//joystick values
-int xVal;
-int yVal;
-int buttonState;
-//servos associated with joystick
-int xServo = 5;
-int yServo = 3;
-int xServoPos;
-int yServoPos;
-// maximum absolute value is 90
-int maxSpeed = 45, minSpeed = -45;
-//servos for rotation and tilt of turret
-Servo rotationServo, tiltServo;
-//deadzones for joystick drift
-int deadzone1 = 5, deadzone2 = -5, stopVal = 0;
-//joystick values
-int joystickXVal;
-int joystickYVal;
-int joystickButtonState;
-//servos associated with joystick
-int rotationServoPin= 5;
+// Joystick pins
+int joystickXPin = A0;
+int joystickYPin = A1;
+
+// Deadzone settings
+int deadzone1 = 5, deadzone2 = -5, stopVal = 90;
+int minSpeed = -60, maxSpeed = 60;
+int rotationServoPos, tiltServoPos;
+
+// Joystick values
+int joystickXVal, joystickYVal;
+
+// Servo pins
+int rotationServoPin = 5;
 int tiltServoPin = 3;
 int firingServoPin = 10;
-int rotationServoPos;
-int tiltServoPos;
-// maximum absolute value is 90
-int maxSpeed = 45, minSpeed = -45;
-//servos for rotation and tilt of turret
+int ButtonPin = 4;
+
+// Servo objects
 Servo rotationServo, tiltServo, firingServo;
-//deadzones for joystick drift
-int deadzone1 = 5, deadzone2 = -5, stopVal = 0;
 
+// Firing mechanism
+int startPos = 90, angleRange = 10, delayTime = 5;
 
-
-
-//function to setup the joystick
+// Function to setup the joystick
 void joystickSetup() {
-  //pin for joysticks and attaching servos to pins
-  pinMode(xPin, INPUT);
-  pinMode(yPin, INPUT);
-  pinMode(buttonPin, INPUT_PULLUP);
-  rotationServo.attach(xServo);
-  tiltServo.attach(yServo);
+  pinMode(joystickXPin, INPUT);
+  pinMode(joystickYPin, INPUT);
+  rotationServo.attach(rotationServoPin);
+  tiltServo.attach(tiltServoPin);
 }
 
-void joystickLoop(int xVal, int yVal, int buttonState) {
+// Function to control the turret's movement
+void joystickLoop(int xVal, int yVal) {
   //0 is still, 90 max speed clockwise, 180 max speed counter-clockwise
   rotationServoPos = map(xVal, 0, 1023, minSpeed, maxSpeed);
   tiltServoPos = map(yVal, 0, 1023, minSpeed, maxSpeed);
@@ -84,25 +67,40 @@ void joystickLoop(int xVal, int yVal, int buttonState) {
   Serial.print(" | Tilt: "); Serial.println(tiltServoPos);
 }
 
+// Function to handle firing mechanism
+void firingLoop(bool buttonPressed) {
+  if (buttonPressed) {
+    for (int pos = 80; pos <= 100; pos++) {
+      firingServo.write(pos);
+      delay(delayTime);
+    }
+    for (int pos = 100; pos >= 80; pos--) {
+      firingServo.write(pos);
+      delay(delayTime);
+    }
+  }
+  firingServo.write(90); 
+}
+
 void setup() {
-  //setup
+  // Setup joystick and servos
   joystickSetup();
-  //serial connection for debugging
+  pinMode(ButtonPin, INPUT_PULLUP);
+  firingServo.attach(firingServoPin);
+  firingServo.write(90);
+
+  // Serial connection for debugging
   Serial.begin(9600);
 }
 
 void loop() {
-  //read the pins of the joystick
-  joystickXVal = analogRead(xPin);
-  joystickYVal = analogRead(yPin);
-  joystickButtonState = digitalRead(buttonPin);
-  joystickLoop(joystickXVal, joystickYVal, joystickButtonState);
+  // Read joystick values
+  joystickXVal = analogRead(joystickXPin);
+  joystickYVal = analogRead(joystickYPin);
 
-  //TO BE CHANGED
-  //using joystick button for firing servo, assuming the spin mechanism is 360 degrees.
-  if (joystickButtonState == LOW) {
-    firingServo.write(90);
-  } else {
-    firingServo.write(0);
-  }
+  // Control firing mechanism
+  firingLoop(digitalRead(ButtonPin));
+
+  // Control turret movement
+  joystickLoop(joystickXVal, joystickYVal);
 }
