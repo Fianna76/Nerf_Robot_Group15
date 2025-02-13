@@ -1,4 +1,8 @@
+#include <Arduino.h>
 #include <Servo.h>
+#include <Wire.h>
+#include <SPI.h>
+
 
 // Joystick pins
 int joystickXPin = A0;
