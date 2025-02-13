@@ -13,6 +13,7 @@ void displayDigit(int digit);
 // Define the Arduino pins connected to the 5611AH segments
 const int segmentPins[7] = {2, 3, 4, 5, 6, 7, 8}; // A, B, C, D, E, F, G
 
+
 // Digit patterns for 0-9 (common cathode)
 const byte digitPatterns[10] = {
   B0111111, // 0
