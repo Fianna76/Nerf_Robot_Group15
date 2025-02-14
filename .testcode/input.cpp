@@ -6,6 +6,8 @@
 #include <Adafruit_MMA8451.h>
 #include <Adafruit_Sensor.h>
 
+#include <OneButton.h>
+
 
 // Create an MMA8451 instance
 Adafruit_MMA8451 mma = Adafruit_MMA8451();
@@ -15,9 +17,18 @@ Adafruit_MMA8451 mma = Adafruit_MMA8451();
 //const int SDA = A4; // Serial Data
 
 // Joystick pins
-int joystickXPin = A0;
-int joystickYPin = A1;
-int joystickButtonPin = 13;
+#define joystickXPin A0
+#define joystickYPin A1
+#define joystickButtonPin 13
+
+OneButton btn = OneButton(
+    joystickButtonPin,  // Input pin for the button
+    true,        // Button is active low
+    true         // Enable internal pull-up resistor
+  );
+
+// Handler function for a single click:
+void handleClick();
 
 // Deadzone settings
 int deadzone1 = 5, deadzone2 = -5, stopVal = 90;
@@ -26,9 +37,6 @@ int rotationServoPos, tiltServoPos;
 
 // Joystick values
 int joystickXVal, joystickYVal;
-
-// Define function prototype
-void displayDigit(int digit);
 
 // Function to setup the joystick
 void joystickSetup() {
@@ -39,7 +47,7 @@ void joystickSetup() {
   
 
 // Define the Arduino pins connected to the 5611AH segments
-const int segmentPins[7] = {2, 3, 4, 5, 6, 7, 8}; // A, B, C, D, E, F, G
+const int segmentPins[4] = {2, 3, 4, 5}; // A, B, C, D
 
 // Digit patterns for 0-9 (common cathode)
 const byte digitPatterns[10] = {
@@ -55,6 +63,9 @@ const byte digitPatterns[10] = {
   B1101111  // 9
 };
 
+// Define function prototype
+void speedDisplay(unsigned long currentMillis);
+
 //Speed display
 int speed = 0;
 const long interval = 500;  // Delay speed changes
@@ -66,6 +77,7 @@ void setup() {
 
   // Setup joystick and servos
   joystickSetup();
+  
 
   // Set all segment pins as outputs
   for (int i = 0; i < 7; i++) {
@@ -84,21 +96,37 @@ void setup() {
     
     // Set sensor to 2G range (can be 2, 4, or 8G)
     mma.setRange(MMA8451_RANGE_2_G);
+
+    btn.attachClick(handleClick);
   }
 }
 
 void loop() {
-   // Read new data
-   mma.read();
+    // Read new data
+    mma.read();
+
+    // Get acceleration values (X, Y, Z)
+    // Serial.print("\nX: "); Serial.print(mma.x / 4096.0); Serial.print(" m/s²");
+    // Serial.print(" | Y: "); Serial.print(mma.y / 4096.0); Serial.print(" m/s²");
+    // Serial.print(" | Z: "); Serial.print(mma.z / 4096.0); Serial.println(" m/s²");
+
+    //Speed display change
+    speedDisplay(millis()); 
+
+    // Read joystick values
+    joystickXVal = analogRead(joystickXPin);
+    joystickYVal = analogRead(joystickYPin);
     
-   // Get acceleration values (X, Y, Z)
-   Serial.print("X: "); Serial.print(mma.x / 4096.0); Serial.print(" m/s²");
-   Serial.print(" | Y: "); Serial.print(mma.y / 4096.0); Serial.print(" m/s²");
-   Serial.print(" | Z: "); Serial.print(mma.z / 4096.0); Serial.println(" m/s²");
-   
-   //Speed display change
-   unsigned long currentMillis = millis();
-   
+    Serial.print("\nJoystick X: "); Serial.print(joystickXVal);
+    Serial.print(" | Y: "); Serial.print(joystickYVal);
+
+    btn.tick();    
+
+    //delay(500); // Wait 500ms before the next reading 
+}
+
+// Function to display a digit
+void speedDisplay(unsigned long currentMillis) {
    if((mma.y / 4096.0) >= 0.5f && currentMillis - previousMillis >= interval && speed < 9)
    {
         speed++;
@@ -109,17 +137,11 @@ void loop() {
         speed--;
         previousMillis = currentMillis;
    }
+  
+//   Serial.print("Setting segments for speed: ");
+//   Serial.println(speed);
 
-   delay(500); // Wait 500ms before the next reading 
-   displayDigit(speed);
-}
-
-// Function to display a digit
-void displayDigit(int digit) {
-  Serial.print("Setting segments for digit: ");
-  Serial.println(digit);
-
-  byte segments = digitPatterns[digit];
+  byte segments = digitPatterns[speed];
 
   for (int i = 0; i < 7; i++) {
     bool state = bitRead(segments, i);
@@ -130,4 +152,11 @@ void displayDigit(int digit) {
     // Serial.print(" -> ");
     // Serial.println(state ? "HIGH (ON)" : "LOW (OFF)");
   }
+}
+
+// Handler function for a single click:
+void handleClick()
+{
+    Serial.println("Clicked!");
+    delay(2000);
 }

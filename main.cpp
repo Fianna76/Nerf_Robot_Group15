@@ -28,7 +28,7 @@ int rotationServoPos, tiltServoPos;
 // Joystick values
 int joystickXVal, joystickYVal;
 
-// Servo pins - Are these digital | OA
+// Servo pins
 int rotationServoPin = 5;
 int tiltServoPin = 3;
 int firingServoPin = 10;
