@@ -12,9 +12,9 @@
 // Create an MMA8451 instance - tilt sensor 
 Adafruit_MMA8451 mma = Adafruit_MMA8451();
 
-// mma pins
-int SCL = A5; // Serial Clock
-int SDA = A4; // Serial Data
+// mma pins - SCL and SDA are predefined in my libraries
+// int SCL = A5; // Serial Clock
+// int SDA = A4; // Serial Data
 
 // Joystick pins
 int joystickXPin = A0;
@@ -33,8 +33,6 @@ int rotationServoPin = 5;
 int tiltServoPin = 3;
 int firingServoPin = 10;
 int ButtonPin = 4;
-
-
 
 // Servo objects
 Servo rotationServo, tiltServo, firingServo;
