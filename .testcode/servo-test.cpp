@@ -161,6 +161,7 @@ void handleClick()
     Serial.println("Button Clicked");
 }
 
+// Changes speed based on angle of controller
 void speedChange() {
     // We check the mma values in the y axis to see if the controller is tilted forward or backwards
     // "Forwards" and "Backwards" are hardcoded angles in the first condition of the if statements
@@ -194,5 +195,4 @@ void speedChange() {
     digitalWrite(BCD_B, bcdLookup[speed][2]);
     digitalWrite(BCD_C, bcdLookup[speed][1]);
     digitalWrite(BCD_D, bcdLookup[speed][0]);
-
 }
