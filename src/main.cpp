@@ -34,8 +34,8 @@ Servo rotationServo, tiltServo, firingServo;
 // Firing Mechanism Values
 #define STARTPOS  20
 #define FINALPOS 150 
-#define FIREDELAY 50
-int state = 0; 
+#define FIREDELAY 300
+int state = 0, shotCount = 0, fireAmount = 0; 
 bool isFiring = false;
 unsigned long firePreviousMillis = 0;
 int rotationServoPos, tiltServoPos;
@@ -182,10 +182,17 @@ void fireLoop() {
       case 2: // Wait, then move back to STARTPOS
           if (currentMillis - firePreviousMillis >= FIREDELAY) {
               firingServo.write(STARTPOS);
-              state = 0; // Reset for the next cycle
-              isFiring = false; // Stop the sequence
+              
+              shotCount++;
+
+              if (shotCount >= fireAmount) {
+                shotCount = 0;
+                isFiring = false; // Stop firing after  cycles
+            } else {
+                state = 0; // Restart cycle
           }
           break;
+        }
   }
 }
 
@@ -194,8 +201,9 @@ void fireLoop() {
 // Updates the LCD display based on angle of controller
 void speedChange();
 
-// Handler function for a single click:
+// Handler functions for joystick button:
 void handleClick();
+void handleLongPressStop();
 
 //==============================================SETUP==============================================
 
@@ -211,12 +219,13 @@ void setup() {
 
   //Built in to OneButton library - attaching our own helper method for when a click is detected
   btn.attachClick(handleClick);  
+  btn.attachLongPressStop(handleLongPressStop);
   
   // --------+++= [MISC] =+++--------
 
   //TODO: Take this out of setup?
   firingServo.attach(firingServoPin);
-  firingServo.write(90);
+  firingServo.write(STARTPOS);
   
 }
 
@@ -247,17 +256,26 @@ void loop() {
 
 //==========================================HELPER FUNCTIONs==========================================
 
-// Handler function for a single click:
-// Currently Set to fire a single dart
-
+// Handler function for a single click: Currently Set to fire a single dart
 void handleClick() {
-  // Serial.println("Joystick Clicked! ");
+  Serial.println("Joystick Clicked! ");
 
   if (!isFiring) { 
     isFiring = true; // Start sequence
     state = 0; // Ensure we start from the beginning
+    fireAmount = 1; //Fire only one bullet
+  }
 }
 
+// Handler function for a releasing a long press: Currently Set to fire 10 darts 
+// TODO: Bullet tracking
+void handleLongPressStop() {
+  Serial.println("Joystick Released! ");
+  if (!isFiring) { 
+    isFiring = true; // Start sequence
+    state = 0; // Ensure we start from the beginning
+    fireAmount = 10; //Fire the entire magazine
+  }
 }
 
 // Changes speed based on angle of controller
