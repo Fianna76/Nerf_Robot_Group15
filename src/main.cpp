@@ -156,23 +156,6 @@ void joystickLoop(int xVal, int yVal) {
   // Serial.print(" | Tilt: "); Serial.println(tiltServoPos);
 }
 
-// Function to handle firing mechanism
-// TODO: Refactor this 
-//    - don't use delay (Seizes up entire robot)
-//    - use the joystick button - this function is now called in the handleClick helper method
-
-void firingLoop() {
-    for (int pos = 80; pos <= 100; pos++) {
-      firingServo.write(pos);
-      delay(delayTime);
-    }
-    for (int pos = 100; pos >= 80; pos--) {
-      firingServo.write(pos);
-      delay(delayTime);
-    }
-  firingServo.write(90); 
-}
-
 // ========+++- [Helper Variable Declarations] -+++========
 
 // Updates the LCD display based on angle of controller
@@ -235,8 +218,15 @@ void loop() {
 // Currently Set to fire a single dart
 void handleClick()
 {
-    firingLoop();
-    Serial.println("Button Clicked");
+  for (int pos = 80; pos <= 100; pos++) {
+    firingServo.write(pos);
+    delay(delayTime);
+  }
+  for (int pos = 100; pos >= 80; pos--) {
+    firingServo.write(pos);
+    delay(delayTime);
+  }
+  firingServo.write(90); 
 }
 
 // Changes speed based on angle of controller
