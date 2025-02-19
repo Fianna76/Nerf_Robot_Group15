@@ -31,8 +31,13 @@ int firingServoPin = 10;
 // Servo objects
 Servo rotationServo, tiltServo, firingServo;
 
-// Position Values
-int startPos = 90, angleRange = 10, delayTime = 5; // Firing Mechanism
+// Firing Mechanism Values
+#define STARTPOS  20
+#define FINALPOS 150 
+#define FIREDELAY 50
+int state = 0; 
+bool isFiring = false;
+unsigned long firePreviousMillis = 0;
 int rotationServoPos, tiltServoPos;
 
 // --------+++= [Joystick] =+++--------
@@ -156,6 +161,34 @@ void joystickLoop(int xVal, int yVal) {
   // Serial.print(" | Tilt: "); Serial.println(tiltServoPos);
 }
 
+void fireLoop() {
+  if (!isFiring) return; // Exit if the sequence isn't active
+
+  switch (state) {
+      case 0: // Move to STARTPOS
+          firingServo.write(STARTPOS);
+          firePreviousMillis = currentMillis;
+          state = 1;
+          break;
+
+      case 1: // Wait, then move to FINALPOS
+          if (currentMillis - firePreviousMillis >= FIREDELAY) {
+              firingServo.write(FINALPOS);
+              firePreviousMillis = currentMillis;
+              state = 2;
+          }
+          break;
+
+      case 2: // Wait, then move back to STARTPOS
+          if (currentMillis - firePreviousMillis >= FIREDELAY) {
+              firingServo.write(STARTPOS);
+              state = 0; // Reset for the next cycle
+              isFiring = false; // Stop the sequence
+          }
+          break;
+  }
+}
+
 // ========+++- [Helper Variable Declarations] -+++========
 
 // Updates the LCD display based on angle of controller
@@ -189,6 +222,7 @@ void setup() {
 
 //==============================================LOOP==============================================
 
+
 void loop() {
   // --------+++= [Read New Data] =+++--------
   // Read new tilt data
@@ -206,27 +240,24 @@ void loop() {
   speedChange();
 
   // --------+++= [Generate Servo Outputs] =+++--------
-
   // Control turret movement
   joystickLoop(joystickXVal, joystickYVal);
-
+  fireLoop(); // Continuously run fireServo to process the sequence
 }
 
 //==========================================HELPER FUNCTIONs==========================================
 
 // Handler function for a single click:
 // Currently Set to fire a single dart
-void handleClick()
-{
-  for (int pos = 80; pos <= 100; pos++) {
-    firingServo.write(pos);
-    delay(delayTime);
-  }
-  for (int pos = 100; pos >= 80; pos--) {
-    firingServo.write(pos);
-    delay(delayTime);
-  }
-  firingServo.write(90); 
+
+void handleClick() {
+  // Serial.println("Joystick Clicked! ");
+
+  if (!isFiring) { 
+    isFiring = true; // Start sequence
+    state = 0; // Ensure we start from the beginning
+}
+
 }
 
 // Changes speed based on angle of controller
