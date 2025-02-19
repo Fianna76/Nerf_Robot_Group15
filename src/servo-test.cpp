@@ -1,0 +1,175 @@
+#include <Arduino.h>
+#include <Wire.h>
+#include <Servo.h>
+#include <SPI.h>
+
+#include <Adafruit_MMA8451.h>
+#include <Adafruit_Sensor.h>
+
+#include <OneButton.h>
+
+// Create an MMA8451 instance
+Adafruit_MMA8451 mma = Adafruit_MMA8451();
+
+//Servo
+const int servoPin = 11;
+Servo servo;
+int servoPos=0;
+
+// Joystick pins
+const int joystickXPin = A0;
+const int joystickYPin = A1;
+int joystickButtonPin = 13;
+
+// Handler function for a single click:
+void handleClick();
+
+// Deadzone settings
+int deadzone1 = 5, deadzone2 = -5, stopVal = 90;
+int minSpeed = -60, maxSpeed = 60;
+int rotationServoPos, tiltServoPos;
+
+// Joystick values
+int joystickXVal, joystickYVal;
+
+// Function to setup the joystick
+void joystickSetup() {
+    pinMode(joystickXPin, INPUT);
+    pinMode(joystickYPin, INPUT);
+    pinMode(joystickButtonPin, INPUT_PULLUP);
+    servo.attach(servoPin);
+    servo.write(0);
+  }
+
+OneButton btn = OneButton(
+    joystickButtonPin,  // Input pin for the button
+    true,        // Button is active low
+    true         // Enable internal pull-up resistor
+  );
+
+// Define Arduino pins connected to 74LS47 BCD inputs
+const int BCD_A = 2;
+const int BCD_B = 5;
+const int BCD_C = 4;
+const int BCD_D = 3;
+
+// Lookup table for BCD representations of digits 0–9
+const byte bcdLookup[10][4] = {
+  {0, 0, 0, 0}, // 0
+  {0, 0, 0, 1}, // 1
+  {0, 0, 1, 0}, // 2
+  {0, 0, 1, 1}, // 3
+  {0, 1, 0, 0}, // 4
+  {0, 1, 0, 1}, // 5
+  {0, 1, 1, 0}, // 6
+  {0, 1, 1, 1}, // 7
+  {1, 0, 0, 0}, // 8
+  {1, 0, 0, 1}  // 9
+};
+
+//Speed (To display on LCD)
+int speed = 0;
+const long interval = 500;  // Delay speed changes (tickrate)
+unsigned long previousMillis = 0;
+unsigned long currentMillis;
+
+//Initialize function here, it's below loop
+void speedChange();
+
+//==============================================SETUP==============================================
+void setup() {
+    // Initialize serial communication for debugging
+    Serial.begin(9600);
+    Serial.println("BCD Tilt Intergration Test...");
+
+    // Initialize MMA8451
+    if (!mma.begin()) {
+        Serial.println("Could not find MMA8451 accelerometer. Check wiring!");
+        while (1);
+    }
+
+    Serial.println("MMA8451 found!");
+
+    joystickSetup();
+
+    btn.attachClick(handleClick);
+
+    // Set sensor to 2G range (can be 2, 4, or 8G)
+    mma.setRange(MMA8451_RANGE_2_G);
+
+        // Set BCD pins as outputs
+        pinMode(BCD_A, OUTPUT);
+        pinMode(BCD_B, OUTPUT);
+        pinMode(BCD_C, OUTPUT);
+        pinMode(BCD_D, OUTPUT);
+
+    }
+
+//==============================================LOOP==============================================
+
+void loop() {
+    // Read new tilt data
+    mma.read();
+
+    //Display speed to LCD/Update it based on new mma data
+    currentMillis = millis();
+    speedChange();
+
+    // Read joystick values
+    joystickXVal = analogRead(joystickXPin);
+    joystickYVal = analogRead(joystickYPin);
+
+    //Update button (check for input)
+    btn.tick(); 
+
+    //int i = map(speed, 0, 9, 0, 180);
+
+    servoPos = map(joystickYVal, 0, 1023, 0, 180);
+
+    servo.write(servoPos);   
+}
+
+//==========================================HELPER FUNCTIONs==========================================
+
+// Handler function for a single click:
+void handleClick()
+{
+    speed++;
+    Serial.println("Button Clicked");
+}
+
+void speedChange() {
+    // We check the mma values in the y axis to see if the controller is tilted forward or backwards
+    // "Forwards" and "Backwards" are hardcoded angles in the first condition of the if statements
+    //
+    // We also only increment/decrement speed after the time (in milliseconds) set in interval has passed
+    // This means the speed change from tilting should act as a single "bump" in a direction, or it can 
+    // be held to gradually increase the speed value
+    // TODO: Establish another function to use button inputs to quickly set speed to max/min
+    
+    
+    //Detect forward rotation (Increase Speed)
+    if((mma.y / 4096.0f) >= 0.5f && currentMillis - previousMillis >= interval && speed < 9)
+    {
+        speed++;
+        previousMillis = currentMillis;
+        // Serial.print("Speed up: "); Serial.println(speed);
+    }
+    //Backwards rotation decreases speed
+    else if((mma.y / 4096.0f) <= -0.5f && currentMillis - previousMillis >= interval && speed > 0)
+    {
+        speed--;
+        previousMillis = currentMillis;
+        // Serial.print("Speed down: "); Serial.println(speed);
+    }
+
+    // Ensure digit is within valid range
+    if (speed < 0 || speed > 9) return;
+
+    // Write the BCD bits to the 74LS47 inputs
+    digitalWrite(BCD_A, bcdLookup[speed][3]);
+    digitalWrite(BCD_B, bcdLookup[speed][2]);
+    digitalWrite(BCD_C, bcdLookup[speed][1]);
+    digitalWrite(BCD_D, bcdLookup[speed][0]);
+
+}
