@@ -8,21 +8,21 @@
 
 #include <OneButton.h>
 
-// Create an MMA8451 instance
+// ========+++- [Global Variable Setup] -+++========
+
+// --------+++= [MMA8451] =+++--------
 Adafruit_MMA8451 mma = Adafruit_MMA8451();
 
-//Servo
+// --------+++= [Servo] =+++--------
 const int servoPin = 11;
 Servo servo;
-int servoPos=0;
+int servoPos = 0;
 
-// Joystick pins
+// --------+++= [Joystick] =+++--------
+// Pins
 const int joystickXPin = A0;
 const int joystickYPin = A1;
 int joystickButtonPin = 13;
-
-// Handler function for a single click:
-void handleClick();
 
 // Deadzone settings
 int deadzone1 = 5, deadzone2 = -5, stopVal = 90;
@@ -32,22 +32,9 @@ int rotationServoPos, tiltServoPos;
 // Joystick values
 int joystickXVal, joystickYVal;
 
-// Function to setup the joystick
-void joystickSetup() {
-    pinMode(joystickXPin, INPUT);
-    pinMode(joystickYPin, INPUT);
-    pinMode(joystickButtonPin, INPUT_PULLUP);
-    servo.attach(servoPin);
-    servo.write(0);
-  }
+// --------+++= [LCD Display] =+++--------
 
-OneButton btn = OneButton(
-    joystickButtonPin,  // Input pin for the button
-    true,        // Button is active low
-    true         // Enable internal pull-up resistor
-  );
-
-// Define Arduino pins connected to 74LS47 BCD inputs
+// Define Arduino pins connected to 74LS47 BCD Encoder inputs
 const int BCD_A = 2;
 const int BCD_B = 5;
 const int BCD_C = 4;
@@ -73,8 +60,32 @@ const long interval = 500;  // Delay speed changes (tickrate)
 unsigned long previousMillis = 0;
 unsigned long currentMillis;
 
-//Initialize function here, it's below loop
+// ========+++- [Additional Setup Functions] -+++========
+
+//TODO: Can we shift this shit into a custom header file or something?
+
+// Function to setup the joystick
+void joystickSetup() {
+    pinMode(joystickXPin, INPUT);
+    pinMode(joystickYPin, INPUT);
+    pinMode(joystickButtonPin, INPUT_PULLUP);
+    servo.attach(servoPin);
+    servo.write(0);
+  }
+
+OneButton btn = OneButton(
+    joystickButtonPin,  // Input pin for the button
+    true,        // Button is active low
+    true         // Enable internal pull-up resistor
+  );
+
+// ========+++- [Helper Variable Declarations] -+++========
+
+// Updates the LCD display based on angle of controller
 void speedChange();
+
+// Handler function for a single click:
+void handleClick();
 
 //==============================================SETUP==============================================
 void setup() {
@@ -108,21 +119,22 @@ void setup() {
 //==============================================LOOP==============================================
 
 void loop() {
+    // --------+++= [Read New Data] =+++--------
     // Read new tilt data
     mma.read();
+    // Read joystick values
+    joystickXVal = analogRead(joystickXPin);
+    joystickYVal = analogRead(joystickYPin);
+    //Update button (check for input)
+    btn.tick(); 
 
+
+    // --------+++= [Update LCD] =+++--------
     //Display speed to LCD/Update it based on new mma data
     currentMillis = millis();
     speedChange();
 
-    // Read joystick values
-    joystickXVal = analogRead(joystickXPin);
-    joystickYVal = analogRead(joystickYPin);
-
-    //Update button (check for input)
-    btn.tick(); 
-
-    //int i = map(speed, 0, 9, 0, 180);
+    // --------+++= [Generate Servo Outputs] =+++--------
 
     servoPos = map(joystickYVal, 0, 1023, 0, 180);
 
@@ -148,14 +160,14 @@ void speedChange() {
     // TODO: Establish another function to use button inputs to quickly set speed to max/min
     
     
-    //Detect forward rotation (Increase Speed)
+    // Detect forward rotation (Increase Speed)
     if((mma.y / 4096.0f) >= 0.5f && currentMillis - previousMillis >= interval && speed < 9)
     {
         speed++;
         previousMillis = currentMillis;
         // Serial.print("Speed up: "); Serial.println(speed);
     }
-    //Backwards rotation decreases speed
+    // Backwards rotation decreases speed
     else if((mma.y / 4096.0f) <= -0.5f && currentMillis - previousMillis >= interval && speed > 0)
     {
         speed--;
