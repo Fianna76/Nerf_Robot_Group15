@@ -32,6 +32,13 @@ int rotationServoPos, tiltServoPos;
 // Joystick values
 int joystickXVal, joystickYVal;
 
+// Establish a OneButton object for pushing in the joystick
+OneButton btn = OneButton(
+    joystickButtonPin,  // Input pin for the button
+    true,        // Button is active low
+    true         // Enable internal pull-up resistor
+  );
+
 // --------+++= [LCD Display] =+++--------
 
 // Define Arduino pins connected to 74LS47 BCD Encoder inputs
@@ -64,7 +71,7 @@ unsigned long currentMillis;
 
 //TODO: Can we shift this shit into a custom header file or something?
 
-// Function to setup the joystick
+// Function to setup the joystick - N.B Depends on the global pin variables above
 void joystickSetup() {
     pinMode(joystickXPin, INPUT);
     pinMode(joystickYPin, INPUT);
@@ -73,11 +80,28 @@ void joystickSetup() {
     servo.write(0);
   }
 
-OneButton btn = OneButton(
-    joystickButtonPin,  // Input pin for the button
-    true,        // Button is active low
-    true         // Enable internal pull-up resistor
-  );
+// MMA8451 Detection and Initialization 
+void mmaSetup() {
+    if (!mma.begin()) {
+        Serial.println("Could not find MMA8451 accelerometer. Check wiring!");
+        while (1);
+    }
+
+    // Set sensor to 2G range (can be 2, 4, or 8G)
+    // TODO: Establish if we need another range (2G should be fine )
+    mma.setRange(MMA8451_RANGE_2_G);
+
+    Serial.println("MMA8451 found!");
+}
+
+// Setup for BCD *encoder* SN74LS4N - which drives a 5611AH 7 seg LCD
+void bcdSetup() {
+    // All we need is to set pinmodes
+    pinMode(BCD_A, OUTPUT);
+    pinMode(BCD_B, OUTPUT);
+    pinMode(BCD_C, OUTPUT);
+    pinMode(BCD_D, OUTPUT);
+}
 
 // ========+++- [Helper Variable Declarations] -+++========
 
@@ -89,30 +113,17 @@ void handleClick();
 
 //==============================================SETUP==============================================
 void setup() {
-    // Initialize serial communication for debugging
+    // --------+++= [Serial] =+++--------
     Serial.begin(9600);
     Serial.println("BCD Tilt Intergration Test...");
 
-    // Initialize MMA8451
-    if (!mma.begin()) {
-        Serial.println("Could not find MMA8451 accelerometer. Check wiring!");
-        while (1);
-    }
-
-    Serial.println("MMA8451 found!");
-
+    // --------+++= [External Setup Functions] =+++--------
+    mmaSetup();
     joystickSetup();
+    bcdSetup();
 
-    btn.attachClick(handleClick);
-
-    // Set sensor to 2G range (can be 2, 4, or 8G)
-    mma.setRange(MMA8451_RANGE_2_G);
-
-        // Set BCD pins as outputs
-        pinMode(BCD_A, OUTPUT);
-        pinMode(BCD_B, OUTPUT);
-        pinMode(BCD_C, OUTPUT);
-        pinMode(BCD_D, OUTPUT);
+    //Built in to OneButton library - attaching our own helper method for when a click is detected
+    btn.attachClick(handleClick);  
 
     }
 
