@@ -48,7 +48,7 @@ unsigned long firePreviousMillis = 0;
 int rotationServoPos, tiltServoPos;
 
 // Movement Mechanism Values
-#define BASE_MOVE_INTERVAL (100UL) //The base amount of time we move for - multiplied by speed
+#define BASE_MOVE_INTERVAL (500UL) //The base amount of time we move for - multiplied by speed
 int direction = 0; // Controls direction 
 // 0 = Neutral (No movement)
 // -1 = CounterClockwise (Left?)
@@ -216,35 +216,41 @@ void fireLoop() {
 
 void trackLoop() {
   if(!isMoving) return; // Exit when the sequence isn't active 
-
+  Serial.print("Direction: "); Serial.println(direction);
   // Currently I have speed implemented to move the robot in a direction for LONGER - at max speed
   // I'll leave it up to you if we should implement it differently - one time period and faster rotation
   // Or change both the length time we move, and the speed at which we move for every speed value
   switch(direction) {
       case 0:
-        movePreviousMillis = currentMillis;
+        // if(currentMillis - movePreviousMillis >= (BASE_MOVE_INTERVAL*(speed+1))) {
+          movementServo.write(0);
+          movePreviousMillis = currentMillis;
+        // }
+        // else {
+          // isMoving = false;
+        // }
         break;
 
       // Move Left - at max speed
       case -1:
-        movePreviousMillis = currentMillis;
         if(currentMillis - movePreviousMillis >= (BASE_MOVE_INTERVAL*(speed+1))) {
-          movementServo.write(180);
+          direction = 0;
+          
         }
         else {
-          direction = 0;
-          isMoving = false;
+          movementServo.write(90);
+          movePreviousMillis = currentMillis;
         }
         break;
       // Move Right - at max speed 
       case 1:
-        movePreviousMillis = currentMillis;
         if(currentMillis - movePreviousMillis >= (BASE_MOVE_INTERVAL*(speed+1))) {
-          movementServo.write(180);
+          direction = 0;
         }
         else {
-          direction = 0;
-          isMoving = false;
+          movementServo.write(180);
+          movePreviousMillis = currentMillis;
+          
         }
         break;
 
@@ -304,6 +310,7 @@ void loop() {
   // --------+++= [Generate Servo Outputs] =+++--------
   // Control track movement
   directionChange();
+  trackLoop();
   
   // Control turret movement
   joystickLoop(joystickXVal, joystickYVal);
@@ -373,13 +380,16 @@ void speedChange() {
 //Changes movement direction based on angle of controller
 void directionChange() {
   // Right
-  if((mma.x / 4096.0f) >= 0.5f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL) {
+  if((mma.x / 4096.0f) >= 0.25f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL) {
     direction = 1;
-    
+    isMoving = true;
+    // Serial.println("Moving Right");
   }
   // Left
-  else if((mma.x / 4096.0f) <= -0.5f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL)
+  else if((mma.x / 4096.0f) <= -0.25f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL)
   {
     direction = -1;
+    isMoving = true;
+    // Serial.println("Moving Left");
   }
 }
