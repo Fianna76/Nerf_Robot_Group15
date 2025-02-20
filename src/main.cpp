@@ -100,9 +100,15 @@ void joystickSetup() {
     
     rotationServo.attach(rotationServoPin);
     tiltServo.attach(tiltServoPin);
-    
+    firingServo.attach(firingServoPin);
+  
     rotationServo.write(0);
     tiltServo.write(0);
+    firingServo.write(STARTPOS);
+
+    //Built in to OneButton library - attaching our own helper methods for when a click is detected (on the joystick)
+    btn.attachClick(handleClick);  
+    btn.attachLongPressStop(handleLongPressStop);
   }
 
 // MMA8451 Detection and Initialization 
@@ -216,16 +222,9 @@ void setup() {
   mmaSetup();
   joystickSetup();
   bcdSetup();
-
-  //Built in to OneButton library - attaching our own helper method for when a click is detected
-  btn.attachClick(handleClick);  
-  btn.attachLongPressStop(handleLongPressStop);
   
   // --------+++= [MISC] =+++--------
-
-  //TODO: Take this out of setup?
-  firingServo.attach(firingServoPin);
-  firingServo.write(STARTPOS);
+  
   
 }
 
