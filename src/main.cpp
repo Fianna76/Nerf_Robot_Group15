@@ -19,26 +19,42 @@ Adafruit_MMA8451 mma = Adafruit_MMA8451();
 // SCL = A5
 // SDA = A4 
 
+#define TILT_INTERVAL (500UL)  // Delay speed changes (tickrate)
+unsigned long tiltPreviousMillis = 0;
+unsigned long currentMillis;
+
+
+
 // --------+++= [Servos] =+++--------
 
 // TODO: These pins *conflict* with the pins I currently have set to our BCD->LCD encoder - change em
 
 // Pins  
-int rotationServoPin = 9;
-int tiltServoPin = 8;
+int rotationServoPin = 8;
+int tiltServoPin = 9;
 int firingServoPin = 10;
+int movementServosPin = 11;
 // int ButtonPin = 4;
 // Servo objects
-Servo rotationServo, tiltServo, firingServo;
+Servo rotationServo, tiltServo, firingServo, movementServo;
 
 // Firing Mechanism Values
 #define STARTPOS  20
 #define FINALPOS 150 
-#define FIREDELAY 300
-int state = 0, shotCount = 0, fireAmount = 0; 
+#define FIREDELAY (300UL)
+int fireState = 0, shotCount = 0, fireAmount = 0; 
 bool isFiring = false;
 unsigned long firePreviousMillis = 0;
 int rotationServoPos, tiltServoPos;
+
+// Movement Mechanism Values
+#define BASE_MOVE_INTERVAL (100UL) //The base amount of time we move for - multiplied by speed
+int direction = 0; // Controls direction 
+// 0 = Neutral (No movement)
+// -1 = CounterClockwise (Left?)
+// 1 = Clockwise (Right?)
+bool isMoving = false;
+unsigned long movePreviousMillis = 0;
 
 // --------+++= [Joystick] =+++--------
 // Pins
@@ -54,7 +70,7 @@ int minSpeed = -60, maxSpeed = 60;
 int joystickXVal, joystickYVal;
 
 // Establish a OneButton object for pushing in the joystick
-OneButton btn = OneButton(
+OneButton joystickButton = OneButton(
     joystickButtonPin,  // Input pin for the button
     true,        // Button is active low
     true         // Enable internal pull-up resistor
@@ -63,10 +79,10 @@ OneButton btn = OneButton(
 // --------+++= [LCD Display] =+++--------
 
 // Define Arduino pins connected to 74LS47 BCD Encoder inputs
-const int BCD_A = 2;
-const int BCD_B = 5;
-const int BCD_C = 4;
-const int BCD_D = 3;
+#define BCD_A 2
+#define BCD_B 5
+#define BCD_C 4
+#define BCD_D 3
 
 // Lookup table for BCD representations of digits 0–9
 const byte bcdLookup[10][4] = {
@@ -84,9 +100,6 @@ const byte bcdLookup[10][4] = {
 
 //Speed (To display on LCD)
 int speed = 0;
-const long interval = 500;  // Delay speed changes (tickrate)
-unsigned long previousMillis = 0;
-unsigned long currentMillis;
 
 // ========+++- [Additional Setup Functions] -+++========
 
@@ -105,10 +118,6 @@ void joystickSetup() {
     rotationServo.write(0);
     tiltServo.write(0);
     firingServo.write(STARTPOS);
-
-    //Built in to OneButton library - attaching our own helper methods for when a click is detected (on the joystick)
-    btn.attachClick(handleClick);  
-    btn.attachLongPressStop(handleLongPressStop);
   }
 
 // MMA8451 Detection and Initialization 
@@ -123,6 +132,9 @@ void mmaSetup() {
     mma.setRange(MMA8451_RANGE_2_G);
 
     Serial.println("MMA8451 found!");
+
+    movementServo.attach(movementServosPin);
+    movementServo.write(0);
 }
 
 // Setup for BCD *encoder* SN74LS4N - which drives a 5611AH 7 seg LCD
@@ -170,18 +182,18 @@ void joystickLoop(int xVal, int yVal) {
 void fireLoop() {
   if (!isFiring) return; // Exit if the sequence isn't active
 
-  switch (state) {
+  switch (fireState) {
       case 0: // Move to STARTPOS
           firingServo.write(STARTPOS);
           firePreviousMillis = currentMillis;
-          state = 1;
+          fireState = 1;
           break;
 
       case 1: // Wait, then move to FINALPOS
           if (currentMillis - firePreviousMillis >= FIREDELAY) {
               firingServo.write(FINALPOS);
               firePreviousMillis = currentMillis;
-              state = 2;
+              fireState = 2;
           }
           break;
 
@@ -195,10 +207,47 @@ void fireLoop() {
                 shotCount = 0;
                 isFiring = false; // Stop firing after  cycles
             } else {
-                state = 0; // Restart cycle
+                fireState = 0; // Restart cycle
           }
           break;
         }
+  }
+}
+
+void trackLoop() {
+  if(!isMoving) return; // Exit when the sequence isn't active 
+
+  // Currently I have speed implemented to move the robot in a direction for LONGER - at max speed
+  // I'll leave it up to you if we should implement it differently - one time period and faster rotation
+  // Or change both the length time we move, and the speed at which we move for every speed value
+  switch(direction) {
+      case 0:
+        movePreviousMillis = currentMillis;
+        break;
+
+      // Move Left - at max speed
+      case -1:
+        movePreviousMillis = currentMillis;
+        if(currentMillis - movePreviousMillis >= (BASE_MOVE_INTERVAL*(speed+1))) {
+          movementServo.write(180);
+        }
+        else {
+          direction = 0;
+          isMoving = false;
+        }
+        break;
+      // Move Right - at max speed 
+      case 1:
+        movePreviousMillis = currentMillis;
+        if(currentMillis - movePreviousMillis >= (BASE_MOVE_INTERVAL*(speed+1))) {
+          movementServo.write(180);
+        }
+        else {
+          direction = 0;
+          isMoving = false;
+        }
+        break;
+
   }
 }
 
@@ -206,6 +255,9 @@ void fireLoop() {
 
 // Updates the LCD display based on angle of controller
 void speedChange();
+
+//Updates the direction to move based on the angle of the controller
+void directionChange();
 
 // Handler functions for joystick button:
 void handleClick();
@@ -224,7 +276,9 @@ void setup() {
   bcdSetup();
   
   // --------+++= [MISC] =+++--------
-  
+  //Built in to OneButton library - attaching our own helper methods for when a click is detected (on the joystick)
+  joystickButton.attachClick(handleClick);  
+  joystickButton.attachLongPressStop(handleLongPressStop);
   
 }
 
@@ -239,7 +293,7 @@ void loop() {
   joystickXVal = analogRead(joystickXPin);
   joystickYVal = analogRead(joystickYPin);
   //Update button (check for input)
-  btn.tick(); 
+  joystickButton.tick(); 
 
 
   // --------+++= [Update LCD] =+++--------
@@ -248,6 +302,9 @@ void loop() {
   speedChange();
 
   // --------+++= [Generate Servo Outputs] =+++--------
+  // Control track movement
+  directionChange();
+  
   // Control turret movement
   joystickLoop(joystickXVal, joystickYVal);
   fireLoop(); // Continuously run fireServo to process the sequence
@@ -261,7 +318,7 @@ void handleClick() {
 
   if (!isFiring) { 
     isFiring = true; // Start sequence
-    state = 0; // Ensure we start from the beginning
+    fireState = 0; // Ensure we start from the beginning
     fireAmount = 1; //Fire only one bullet
   }
 }
@@ -272,7 +329,7 @@ void handleLongPressStop() {
   Serial.println("Joystick Released! ");
   if (!isFiring) { 
     isFiring = true; // Start sequence
-    state = 0; // Ensure we start from the beginning
+    fireState = 0; // Ensure we start from the beginning
     fireAmount = 10; //Fire the entire magazine
   }
 }
@@ -280,26 +337,26 @@ void handleLongPressStop() {
 // Changes speed based on angle of controller
 void speedChange() {
     // We check the mma values in the y axis to see if the controller is tilted forward or backwards
-    // "Forwards" and "Backwards" are hardcoded angles in the first condition of the if statements
+    // "Forwards" and "Backwards" are hardcoded angles in the first condition of the if fireStatements
     //
-    // We also only increment/decrement speed after the time (in milliseconds) set in interval has passed
+    // We also only increment/decrement speed after the time (in milliseconds) set in TILT_INTERVAL has passed
     // This means the speed change from tilting should act as a single "bump" in a direction, or it can 
     // be held to gradually increase the speed value
     // TODO: Establish another function to use button inputs to quickly set speed to max/min
     
     
     // Detect forward rotation (Increase Speed)
-    if((mma.y / 4096.0f) >= 0.5f && currentMillis - previousMillis >= interval && speed < 9)
+    if((mma.y / 4096.0f) >= 0.5f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL && speed < 9)
     {
         speed++;
-        previousMillis = currentMillis;
+        tiltPreviousMillis = currentMillis;
         // Serial.print("Speed up: "); Serial.println(speed);
     }
     // Backwards rotation decreases speed
-    else if((mma.y / 4096.0f) <= -0.5f && currentMillis - previousMillis >= interval && speed > 0)
+    else if((mma.y / 4096.0f) <= -0.5f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL && speed > 0)
     {
         speed--;
-        previousMillis = currentMillis;
+        tiltPreviousMillis = currentMillis;
         // Serial.print("Speed down: "); Serial.println(speed);
     }
 
@@ -311,4 +368,18 @@ void speedChange() {
     digitalWrite(BCD_B, bcdLookup[speed][2]);
     digitalWrite(BCD_C, bcdLookup[speed][1]);
     digitalWrite(BCD_D, bcdLookup[speed][0]);
+}
+
+//Changes movement direction based on angle of controller
+void directionChange() {
+ 
+  // Right
+  if((mma.x / 4096.0f) >= 0.5f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL) {
+    
+  }
+  // Left
+  else if((mma.x / 4096.0f) <= -0.5f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL)
+  {
+    
+  }
 }
