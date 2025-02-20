@@ -372,14 +372,14 @@ void speedChange() {
 
 //Changes movement direction based on angle of controller
 void directionChange() {
- 
   // Right
   if((mma.x / 4096.0f) >= 0.5f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL) {
+    direction = 1;
     
   }
   // Left
   else if((mma.x / 4096.0f) <= -0.5f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL)
   {
-    
+    direction = -1;
   }
 }
