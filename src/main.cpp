@@ -220,6 +220,8 @@ void trackLoop() {
   // Currently I have speed implemented to move the robot in a direction for LONGER - at max speed
   // I'll leave it up to you if we should implement it differently - one time period and faster rotation
   // Or change both the length time we move, and the speed at which we move for every speed value
+
+  // TODO: Get this to actually work
   switch(direction) {
       case 0:
         // if(currentMillis - movePreviousMillis >= (BASE_MOVE_INTERVAL*(speed+1))) {
@@ -250,7 +252,6 @@ void trackLoop() {
         else {
           movementServo.write(180);
           movePreviousMillis = currentMillis;
-          
         }
         break;
 
