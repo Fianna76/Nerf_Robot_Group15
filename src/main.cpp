@@ -7,7 +7,6 @@
 #include <Adafruit_Sensor.h>
 
 #include <OneButton.h>
-#include <SoftPWM.h>
 
 //TODO: I'm factoring this code to work off my UNO cause that's how my IDE is configured right now
 //      Need to change the pinouts to work with the NANO 
@@ -27,12 +26,6 @@ unsigned long currentMillis;
 
 
 // --------+++= [Servos] =+++--------
-
-//PWM Emulation
-SOFTPWM_DEFINE_CHANNEL(8, DDRB, PORTB, PORTB0);  
-SOFTPWM_DEFINE_OBJECT(20);
-static volatile uint8_t v = 0;
-
 // Pins  
 int rotationServoPin = 6;
 int tiltServoPin = 8;
@@ -43,7 +36,7 @@ int brushlessMotor1 = 3;
 int brushlessMotor2 = 5;
 // int ButtonPin = 4;
 // Servo objects
-Servo rotationServo, tiltServo, firingServo, movementServo;
+Servo rotationServo, tiltServo, firingServo, movementServosBackwards, movementServoForward;
 
 // Firing Mechanism Values
 #define STARTPOS  20
@@ -75,7 +68,7 @@ const int joystickYPin = A1;
 int joystickButtonPin = 13;
 
 // Deadzone settings
-int deadzone1 = 5, deadzone2 = -5, stopVal = 90;
+int deadzone1 = 10, deadzone2 = -10, stopVal = 90;
 int minSpeed = -60, maxSpeed = 60;
 
 // Joystick values
@@ -145,8 +138,10 @@ void mmaSetup() {
 
     Serial.println("MMA8451 found!");
 
-    movementServo.attach(movementServosBackwardsPin);
-    movementServo.write(0);
+    movementServoForward.attach(movementServoForwardPin);
+    movementServosBackwards.attach(movementServosBackwardsPin);
+    movementServoForward.write(0);
+    movementServosBackwards.write(0);
 }
 
 // Setup for BCD *encoder* SN74LS4N - which drives a 5611AH 7 seg LCD
@@ -233,7 +228,8 @@ void trackLoop() {
   switch(direction) {
       case 0:
         // if(currentMillis - movePreviousMillis >= (BASE_MOVE_INTERVAL*(speed+1))) {
-          movementServo.write(0);
+          movementServoForward.write(0);
+          movementServosBackwards.write(0);
           movePreviousMillis = currentMillis;
         // }
         // else {
@@ -247,7 +243,7 @@ void trackLoop() {
           direction = 0;
         }
         else {
-          movementServo.write(30);
+          movementServoForward.write(30);
           // movePreviousMillis = currentMillis;
         }
         break;
@@ -257,7 +253,7 @@ void trackLoop() {
           direction = 0;
         }
         else {
-          movementServo.write(160);
+          movementServoForward.write(160);
           // movePreviousMillis = currentMillis;
         }
         break;
@@ -292,15 +288,7 @@ void setup() {
   // --------+++= [MISC] =+++--------
   //Built in to OneButton library - attaching our own helper methods for when a click is detected (on the joystick)
   joystickButton.attachClick(handleClick);  
-  joystickButton.attachLongPressStop(handleLongPressStop);
-
-  // PWM Emulation
-  // begin with 60hz pwm frequency
-  Palatis::SoftPWM.begin(60);
-
-  // print interrupt load for diagnostic purposes
-  Palatis::SoftPWM.printInterruptLoad();
-  
+  joystickButton.attachLongPressStop(handleLongPressStop);  
 }
 
 //==============================================LOOP==============================================
