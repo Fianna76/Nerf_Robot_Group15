@@ -170,9 +170,6 @@ void joystickLoop(int xVal, int yVal) {
   if (rotationServoPos > deadzone2 && rotationServoPos < deadzone1) {
     rotationServoPos = stopVal;
   }
-  if (tiltServoPos > deadzone2 && tiltServoPos < deadzone1) {
-    tiltServoPos = stopVal;
-  }
 
   //the servos switch directions on > 90 rather than negative so we add 180 to negative values to get other direction.
   if (rotationServoPos < deadzone2) {
@@ -180,11 +177,7 @@ void joystickLoop(int xVal, int yVal) {
   } else {
     rotationServo.write(rotationServoPos);
   }
-  if (tiltServoPos < deadzone2) {
-    tiltServo.write(tiltServoPos + 180);
-  } else {
-    tiltServo.write(tiltServoPos);
-  }
+  tiltServo.write(tiltServoPos);
 
   // Debugging output
   // Serial.print("Rotation: "); Serial.print(rotationServoPos);
