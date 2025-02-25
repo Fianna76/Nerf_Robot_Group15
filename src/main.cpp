@@ -237,23 +237,29 @@ void trackLoop() {
         // }
         break;
 
-      // Move Left - at max speed
+      // Move Left (anti-clockwise)
       case -1:
         if(currentMillis - movePreviousMillis >= (BASE_MOVE_INTERVAL)) {
           direction = 0;
         }
         else {
+          // N.B. UPDATE THIS TO USE SPEED (* BY IT)
+          // also please make sure it works of the 9 gram servo co-ordinates - maybe define a base number we can change?
           movementServoForward.write(30);
+          movementServoBackw.write(160);
           // movePreviousMillis = currentMillis;
         }
         break;
-      // Move Right - at max speed 
+      // Move Right (clockwise) 
       case 1:
         if(currentMillis - movePreviousMillis >= (BASE_MOVE_INTERVAL)) {
           direction = 0;
         }
         else {
+          // N.B. UPDATE THIS TO USE SPEED (* BY IT)
+          // also please make sure it works of the 9 gram servo co-ordinates - maybe define a base number we can change?
           movementServoForward.write(160);
+          movementServosBackwards.write(30);
           // movePreviousMillis = currentMillis;
         }
         break;
