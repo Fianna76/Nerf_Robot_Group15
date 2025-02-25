@@ -26,7 +26,6 @@ unsigned long currentMillis;
 
 
 // --------+++= [Servos] =+++--------
-
 // Pins  
 int rotationServoPin = 6;
 int tiltServoPin = 8;
@@ -49,6 +48,9 @@ unsigned long firePreviousMillis = 0;
 
 // Aim Mechanism Values
 int rotationServoPos, tiltServoPos;
+const unsigned long period = 20000; // 20 ms period in microseconds (50Hz)
+const unsigned long minPulse = 1000; // 1 ms pulse (servo minimum position)
+const unsigned long maxPulse = 2000; // 2 ms pulse (servo maximum position)
 
 // Movement Mechanism Values
 #define BASE_MOVE_INTERVAL (2500UL) //The base amount of time we move for - multiplied by speed
@@ -157,14 +159,11 @@ void bcdSetup() {
 void joystickLoop(int xVal, int yVal) {
   //0 is still, 90 max speed clockwise, 180 max speed counter-clockwise
   rotationServoPos = map(xVal, 0, 1023, minSpeed, maxSpeed);
-  tiltServoPos = map(yVal, 0, 1023, minSpeed, maxSpeed);
+  tiltServoPos = map(yVal, 0, 1023, minPulse, maxPulse);
 
   //make sure the servos dont move when the joystick is in the center position
   if (rotationServoPos > deadzone2 && rotationServoPos < deadzone1) {
     rotationServoPos = stopVal;
-  }
-  if (tiltServoPos > deadzone2 && tiltServoPos < deadzone1) {
-    tiltServoPos = stopVal;
   }
 
   //the servos switch directions on > 90 rather than negative so we add 180 to negative values to get other direction.
@@ -173,11 +172,7 @@ void joystickLoop(int xVal, int yVal) {
   } else {
     rotationServo.write(rotationServoPos);
   }
-  if (tiltServoPos < deadzone2) {
-    tiltServo.write(tiltServoPos + 180);
-  } else {
-    tiltServo.write(tiltServoPos);
-  }
+  tiltServo.write(tiltServoPos);
 
   // Debugging output
   // Serial.print("Rotation: "); Serial.print(rotationServoPos);
