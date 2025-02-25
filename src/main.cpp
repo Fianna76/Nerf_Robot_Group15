@@ -7,6 +7,7 @@
 #include <Adafruit_Sensor.h>
 
 #include <OneButton.h>
+#include <SoftPWM.h>
 
 //TODO: I'm factoring this code to work off my UNO cause that's how my IDE is configured right now
 //      Need to change the pinouts to work with the NANO 
@@ -27,13 +28,17 @@ unsigned long currentMillis;
 
 // --------+++= [Servos] =+++--------
 
-// TODO: These pins *conflict* with the pins I currently have set to our BCD->LCD encoder - change em
+//PWM Emulation
+SOFTPWM_DEFINE_OBJECT(20);
 
 // Pins  
 int rotationServoPin = 8;
-int tiltServoPin = 9;
-int firingServoPin = 10;
-int movementServosPin = 11;
+int tiltServoPin = 6;
+int firingServoPin = 11;
+int movementServosBackwardsPin = 10;
+int movementServoForwardPin = 9
+int brushlessMotor1 = 3;
+int brushlessMotor2 = 5;
 // int ButtonPin = 4;
 // Servo objects
 Servo rotationServo, tiltServo, firingServo, movementServo;
@@ -45,10 +50,12 @@ Servo rotationServo, tiltServo, firingServo, movementServo;
 int fireState = 0, shotCount = 0, fireAmount = 0; 
 bool isFiring = false;
 unsigned long firePreviousMillis = 0;
+
+// Aim Mechanism Values
 int rotationServoPos, tiltServoPos;
 
 // Movement Mechanism Values
-#define BASE_MOVE_INTERVAL (500UL) //The base amount of time we move for - multiplied by speed
+#define BASE_MOVE_INTERVAL (2500UL) //The base amount of time we move for - multiplied by speed
 int direction = 0; // Controls direction 
 // 0 = Neutral (No movement)
 // -1 = CounterClockwise (Left?)
@@ -216,10 +223,13 @@ void fireLoop() {
 
 void trackLoop() {
   if(!isMoving) return; // Exit when the sequence isn't active 
+  
   Serial.print("Direction: "); Serial.println(direction);
   // Currently I have speed implemented to move the robot in a direction for LONGER - at max speed
   // I'll leave it up to you if we should implement it differently - one time period and faster rotation
   // Or change both the length time we move, and the speed at which we move for every speed value
+
+  Serial.println(currentMillis - movePreviousMillis);
 
   // TODO: Get this to actually work
   switch(direction) {
@@ -235,30 +245,29 @@ void trackLoop() {
 
       // Move Left - at max speed
       case -1:
-        if(currentMillis - movePreviousMillis >= (BASE_MOVE_INTERVAL*(speed+1))) {
+        if(currentMillis - movePreviousMillis >= (BASE_MOVE_INTERVAL)) {
           direction = 0;
-          
         }
         else {
-          movementServo.write(90);
-          movePreviousMillis = currentMillis;
+          movementServo.write(30);
+          // movePreviousMillis = currentMillis;
         }
         break;
       // Move Right - at max speed 
       case 1:
-        if(currentMillis - movePreviousMillis >= (BASE_MOVE_INTERVAL*(speed+1))) {
+        if(currentMillis - movePreviousMillis >= (BASE_MOVE_INTERVAL)) {
           direction = 0;
         }
         else {
-          movementServo.write(180);
-          movePreviousMillis = currentMillis;
+          movementServo.write(160);
+          // movePreviousMillis = currentMillis;
         }
         break;
 
   }
 }
 
-// ========+++- [Helper Variable Declarations] -+++========
+// ========+++- [Helper Function Declarations] -+++========
 
 // Updates the LCD display based on angle of controller
 void speedChange();
@@ -278,7 +287,7 @@ void setup() {
   Serial.println("Intializing Main: ");
   
   // --------+++= [External Setup Functions] =+++--------
-  mmaSetup();
+  //mmaSetup();
   joystickSetup();
   bcdSetup();
   
@@ -286,6 +295,13 @@ void setup() {
   //Built in to OneButton library - attaching our own helper methods for when a click is detected (on the joystick)
   joystickButton.attachClick(handleClick);  
   joystickButton.attachLongPressStop(handleLongPressStop);
+
+  // PWM Emulation
+  // begin with 60hz pwm frequency
+  Palatis::SoftPWM.begin(60);
+
+  // print interrupt load for diagnostic purposes
+  Palatis::SoftPWM.printInterruptLoad();
   
 }
 
@@ -295,7 +311,7 @@ void setup() {
 void loop() {
   // --------+++= [Read New Data] =+++--------
   // Read new tilt data
-  mma.read();
+  //mma.read();
   // Read joystick values
   joystickXVal = analogRead(joystickXPin);
   joystickYVal = analogRead(joystickYPin);
@@ -322,7 +338,7 @@ void loop() {
 
 // Handler function for a single click: Currently Set to fire a single dart
 void handleClick() {
-  Serial.println("Joystick Clicked! ");
+  // Serial.println("Joystick Clicked! ");
 
   if (!isFiring) { 
     isFiring = true; // Start sequence
@@ -376,6 +392,8 @@ void speedChange() {
     digitalWrite(BCD_B, bcdLookup[speed][2]);
     digitalWrite(BCD_C, bcdLookup[speed][1]);
     digitalWrite(BCD_D, bcdLookup[speed][0]);
+
+    // Serial.println(speed);
 }
 
 //Changes movement direction based on angle of controller
