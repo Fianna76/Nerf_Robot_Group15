@@ -105,6 +105,12 @@ void setup() {
 
     Serial.println("Servos initialized..."); 
 
+    // Set button pins as input with pull-up resistors
+    pinMode(dpadUpPin, INPUT_PULLUP);
+    pinMode(dpadDownPin, INPUT_PULLUP);
+    pinMode(dpadLeftPin, INPUT_PULLUP);
+    pinMode(dpadRightPin, INPUT_PULLUP);
+
     pinMode(BCD_A, OUTPUT);
     pinMode(BCD_B, OUTPUT);
     pinMode(BCD_C, OUTPUT);

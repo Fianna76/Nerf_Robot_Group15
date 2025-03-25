@@ -8,11 +8,7 @@
 
 // --------+++= [MMA8451] =+++--------
 // Initialize MMA8451 accelerometer at address 0x1D
-Adafruit_MMA8451 mma = Adafruit_MMA8451(0x1D);
-
-#define TILT_INTERVAL (500UL)  // Delay speed changes (tickrate)
-unsigned long tiltPreviousMillis = 0;
-unsigned long currentMillis;
+Adafruit_MMA8451 mma = Adafruit_MMA8451(0x1C);
 
 // --------+++= [Servos] =+++--------
 
@@ -32,10 +28,6 @@ const int flywheelsPin = 5;
 const int frontWheelPin = 11;  
 const int backWheelPin = 12; 
 
-#define WHEEL_TOP_SPEED 120
-#define WHEEL_BOTTOM_SPEED 60
-#define WHEEL_NEUTRAL 90
-
 // --------+++= [Analogue Inputs] =+++--------
 const int joystickX = A0; // Yaw control
 const int joystickY = A1; // Pitch control
@@ -48,10 +40,10 @@ const int dpadDownPin = 7;
 const int dpadLeftPin = 2;
 const int dpadRightPin = 3;
 
-OneButton dpadUp(dpadUpPin, true); //True for Active LOW pull-up
-OneButton dpadDown(dpadDownPin, true);
-OneButton dpadLeft(dpadLeftPin, true);
-OneButton dpadRight(dpadRightPin, true);
+// OneButton dpadUp(dpadUpPin, false); //False for Active HIGH pull-up
+// OneButton dpadDown(dpadDownPin, false);
+// OneButton dpadLeft(dpadLeftPin, false);
+// OneButton dpadRight(dpadRightPin, false);
 
 // --------+++= [LCD Display] =+++--------
 
@@ -76,6 +68,14 @@ const byte bcdLookup[10][4] = {
 };
 
 // --------+++= [Global Variables] =+++--------
+// Timing
+unsigned long butPreviousMillis = 0;
+unsigned long tiltPreviousMillis = 0;
+#define BUT_INTERVAL (250UL)
+#define TILT_INTERVAL (500UL)  // Delay speed changes (tickrate)
+
+unsigned long currentMillis;
+
 // Aiming
 int yawSpeed = 90;      // Centered at 90 (neutral)
 int pitchSpeed = 90;    // Centered at 90 (neutral)
@@ -87,9 +87,20 @@ boolean fineControl = false;
 // Firing
 int flywheelsSpeed = 0;
 int feedPosition = 25;  // Default position
-boolean flywheelsEnabled = false;
+boolean flywheelsEnabled = true;
+
+#define STARTPOS  25
+#define FINALPOS 130 
+#define FIREDELAY (250UL)
+int fireState = 0;
+bool isFiring = false;
+unsigned long firePreviousMillis = 0;
 
 // Movment
+#define WHEEL_TOP_SPEED 120
+#define WHEEL_BOTTOM_SPEED 60
+#define WHEEL_NEUTRAL 90
+
 int frontWheelSpeed = 90;
 int backWheelSpeed = 90;
 int speed = 0; // 7Seg Display
@@ -113,6 +124,8 @@ void joystickToggle();
 
 // Fires a single bullet on button press
 void fire();
+// Handles the position changes of the firing arm
+void fireLoop();
 
 //==============================================SETUP==============================================
 void setup() {
@@ -137,18 +150,30 @@ void setup() {
 
     Serial.println("Servos initialized..."); 
 
+    Serial.println("Arming Sequence Begin...");
+    flywheelsServo.write(45);
+    delay(1000);
+    flywheelsServo.write(0);
+    Serial.println("Armed!!");
+
     // Initialize Buttons
+    // Set button pins as input with pull-up resistors
+    pinMode(dpadUpPin, INPUT_PULLUP);
+    pinMode(dpadDownPin, INPUT_PULLUP);
+    pinMode(dpadLeftPin, INPUT_PULLUP);
+    pinMode(dpadRightPin, INPUT_PULLUP); 
+
+
+    // dpadUp.attachClick(stop); //Single Click 
+
+
+    // dpadDown.attachClick(flywheelsToggle);
+
    
-    dpadUp.attachClick(stop); //Single Click 
-
-
-    dpadDown.attachClick(flywheelsToggle);
-
-   
-    dpadLeft.attachClick(fire); //TODO: Determine something for this/move fire integration
+    // dpadLeft.attachClick(fire); //TODO: Determine something for this/move fire integration
 
   
-    dpadRight.attachClick(joystickToggle);
+    // dpadRight.attachClick(joystickToggle);
 
     Serial.println("Buttons initialized..."); 
 
@@ -162,21 +187,23 @@ void setup() {
 
     Serial.println("7Seg initialized..."); 
 
-    // Initialize MMA8451 accelerometer
-    if (!mma.begin()) {
-        Serial.println("MMA8451 not found! Check wiring.");
-        while (1);
-    }
-    Serial.println("MMA8451 detected successfully!");
+    // // Initialize MMA8451 accelerometer
+    // if (!mma.begin()) {
+    //     Serial.println("MMA8451 not found! Check wiring.");
+    //     while (1);
+    // }
+    // Serial.println("MMA8451 detected successfully!");
 
-    // Set MMA8451 sensitivity (2G range for better precision)
-    mma.setRange(MMA8451_RANGE_2_G);
+    // // Set MMA8451 sensitivity (2G range for better precision)
+    // mma.setRange(MMA8451_RANGE_2_G);
 }
 
 void loop() {
     // --------+++= [Read New Data] =+++--------
-    // Read new tilt data
-    mma.read();
+    // // Read new tilt data
+    // mma.read();
+
+    currentMillis = millis();
 
     // Read joystick values
     int joyX = analogRead(joystickX);
@@ -204,16 +231,16 @@ void loop() {
     
     // --------+++= [Update LCD] =+++--------
     //Display speed to LCD/Update it based on new mma data
-    currentMillis = millis();
-    speedChange(); 
-    directionChange();
+    // currentMillis = millis();
+    // speedChange(); 
+    // directionChange();
 
     // --------+++= [Button Handling] =+++--------
     // Read buttons to see if there's an input - this could change values!
-    dpadUp.tick();
-    dpadDown.tick();
-    dpadLeft.tick();
-    dpadRight.tick();
+    if (digitalRead(dpadUpPin) == LOW) { fire(); }
+    // if (digitalRead(dpadDownPin) == LOW) { Serial.println("Down Touched"); delay(2000); }
+    if (digitalRead(dpadLeftPin) == LOW) { Serial.println("Left Touched"); delay(2000); }
+    if (digitalRead(dpadRightPin) == LOW) { Serial.println("Right Touched"); delay(2000); }
 
     // --------+++= [Generate Servo Outputs] =+++--------
     yawServo.write(yawSpeed);
@@ -223,17 +250,21 @@ void loop() {
     backWheel.write(backWheelSpeed);
 
     // Only write flywheels values out while its enabled (state controlled by button press)
-    flywheelsEnabled ? flywheelsServo.write(flywheelsSpeed) : void();
+    if(flywheelsEnabled) { flywheelsServo.write(flywheelsSpeed);}
 
     // Debugging output
-    Serial.print("Yaw speed: "); Serial.print(yawSpeed);
-    Serial.print(" | Pitch speed: "); Serial.print(pitchSpeed);
-    Serial.print(" | X Tilt: "); Serial.print(mma.x / 4096.0f);
-    Serial.print(" | Y Tilt: "); Serial.print(mma.y / 4096.0f);
-    Serial.print(" | Front Wheel: "); Serial.print(frontWheelSpeed);
-    Serial.print(" | Back Wheel: "); Serial.println(backWheelSpeed);
+    // Serial.print("Yaw speed: "); Serial.print(yawSpeed);
+    // Serial.print(" | Pitch speed: "); Serial.print(pitchSpeed);
+    // Serial.print(" | X Tilt: "); Serial.print(mma.x / 4096.0f);
+    // Serial.print(" | Y Tilt: "); Serial.print(mma.y / 4096.0f);
+    // Serial.print(" | Front Wheel: "); Serial.print(frontWheelSpeed);
+    // Serial.print(" | Back Wheel: "); Serial.println(backWheelSpeed);
+    // Serial.println("Pot Value: "); Serial.print(potValue);
 
-    delay(10); // Small delay for stability
+    // Serial.println("JoystickX: "); Serial.print(joystickX);
+    // Serial.print(" | JoystickY: "); Serial.print(joystickY);
+
+    delay(100); // Small delay for stability
 }
 
 //==========================================HELPER FUNCTIONs==========================================
@@ -247,15 +278,55 @@ void stop()
 }
 
 void fire() {
-  Serial.println("Fire (Left) Clicked!");
-  feedPosition = (feedPosition == 25) ? 130 : 25;
+  if(currentMillis - butPreviousMillis >= BUT_INTERVAL)
+  {
+    Serial.println("Fire (Left) Clicked!");
+    isFiring = true;
+    fireLoop();
+    butPreviousMillis = currentMillis;
+  }
+  
+}
+
+void fireLoop() {
+  if (!isFiring) return; // Exit if the sequence isn't active
+
+  switch (fireState) {
+      case 0: // Move to STARTPOS
+          firingServo.write(STARTPOS);
+          firePreviousMillis = currentMillis;
+          fireState = 1;
+          break;
+
+      case 1: // Wait, then move to FINALPOS
+          if (currentMillis - firePreviousMillis >= FIREDELAY) {
+              firingServo.write(FINALPOS);
+              firePreviousMillis = currentMillis;
+              fireState = 2;
+          }
+          break;
+
+      case 2: // Wait, then move back to STARTPOS
+          if (currentMillis - firePreviousMillis >= FIREDELAY) {
+              firingServo.write(STARTPOS);
+                isFiring = false; // Stop firing after cycle
+                fireState = 0; // Reset state
+          }
+          break;
+        }
 }
 
 // Toggles the opposite of the currrent enable condition 
 void flywheelsToggle()
 {
-  Serial.println("Right Clicked!");
-  flywheelsEnabled = !flywheelsEnabled;
+  if(currentMillis - butPreviousMillis >= BUT_INTERVAL)
+  {
+    Serial.println("Right Clicked!"); Serial.print("Enable Status: "); Serial.print(flywheelsEnabled);
+    flywheelsEnabled = !flywheelsEnabled;
+    flywheelsSpeed = 0;
+    butPreviousMillis = currentMillis;
+  }
+  
 }
 
 void joystickToggle()
