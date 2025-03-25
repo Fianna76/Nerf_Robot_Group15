@@ -32,8 +32,6 @@ const int flywheelPin = 5;
 const int frontWheelPin = 11;  
 const int backWheelPin = 12; 
 
-boolean flywheelEnabled = false;
-
 #define WHEEL_TOP_SPEED 120
 #define WHEEL_BOTTOM_SPEED 60
 #define WHEEL_NEUTRAL 90
@@ -79,14 +77,17 @@ const byte bcdLookup[10][4] = {
 
 // --------+++= [Global Variables] =+++--------
 // Aiming
-int yawMapped = 0;
-int pitchMapped = 0;
 int yawSpeed = 90;      // Centered at 90 (neutral)
 int pitchSpeed = 90;    // Centered at 90 (neutral)
+int lastJoyX;
+int lastJoyY;
+
+boolean fineControl = false;
 
 // Firing
 int flywheelSpeed = 0;
 int feedPosition = 25;  // Default position
+boolean flywheelEnabled = false;
 
 // Movment
 int frontWheelSpeed = 90;
@@ -180,9 +181,21 @@ void loop() {
     // Read joystick values
     int joyX = analogRead(joystickX);
     int joyY = analogRead(joystickY);
+    
     // Map joystick values
-    yawSpeed = map(joyX, 0, 1023, 0, 180); 
-    pitchSpeed = map(joyY, 0, 1023, 0, 180); 
+    if (fineControl) {
+      // Dynamic fine control range around last positions (max/min ensure we don't map outside our boundarys)
+      int fineJoyX = map(joyX, 0, 1023, max(lastJoyX - 200, 0), min(lastJoyX + 200, 1023));
+      int fineJoyY = map(joyY, 0, 1023, max(lastJoyY - 200, 0), min(lastJoyY + 200, 1023));
+
+      yawSpeed = map(FineJoyX, 0, 1023, 0, 180);
+      pitchSpeed = map(FineJoyY, 0, 1023, 0, 180);
+    } 
+    else {
+      // Full range mapping for large control
+      yawSpeed = map(joyX, 0, 1023, 0, 180);
+      pitchSpeed = map(joyY, 0, 1023, 0, 180);
+    } 
 
     // Read potentiometer for flywheel speed & map values
     int potValue = analogRead(potPin);
@@ -240,6 +253,17 @@ void fire() {
 void flyWheelToggle()
 {
   flywheelEnabled = !flywheelEnabled;
+}
+
+void joyStickToggle()
+{
+  fineControl = !fineControl;
+
+  if(fineControl)
+  {
+    lastJoyX = analogRead(joystickX);
+    lastJoyY = analogRead(joystickY);
+  }
 }
 
 // Changes speed based on angle of controller
