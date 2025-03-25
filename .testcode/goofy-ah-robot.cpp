@@ -3,10 +3,15 @@
 #include <Adafruit_Sensor.h>
 #include <Servo.h>
 
+// ========+++- [Global Variable Setup] -+++========
+
+// --------+++= [MMA8451] =+++--------
 // Initialize MMA8451 accelerometer at address 0x1D
 Adafruit_MMA8451 mma = Adafruit_MMA8451(0x1D);
 
-// Define servos
+// --------+++= [Servos] =+++--------
+
+// Servo Objects
 Servo yawServo;
 Servo pitchServo;
 Servo feedServo;
@@ -19,33 +24,34 @@ const int yawPin = 9;
 const int pitchPin = 10;
 const int feedPin = 6;
 const int flywheelPin = 5;
-const int leftWheelPin = 11;  // Left wheel servo
-const int rightWheelPin = 12; // Right wheel servo
+const int frontWheelPin = 11;  // Left wheel servo
+const int backWheelPin = 12; // Right wheel servo
 
-// Joystick and trigger inputs
-// const int joystickX = A0; // Yaw control
-// const int joystickY = A1; // Pitch control
-const int ltTrigger = A2; // Flywheel speed
-const int rtTrigger = A3; // Bullet feed control
 
-// D-pad button inputs
+// --------+++= [Joystick] =+++--------
+const int joystickX = A0; // Yaw control
+const int joystickY = A1; // Pitch control
+
+
+// --------+++= [D-Pad] =+++--------
 const int dpadUp = 4;
 const int dpadDown = 7;
 const int dpadLeft = 2;
 const int dpadRight = 3;
 
-// Variables
+// --------+++= [Global Variables] =+++--------
 int yawSpeed = 90;      // Centered at 90 (neutral)
 int pitchSpeed = 90;    // Centered at 90 (neutral)
 int flywheelSpeed = 0;
 int feedPosition = 25;  // Default position
 int leftWheelSpeed = 90;
 int rightWheelSpeed = 90;
-// int yawMapped = 0;
-// int pitchMapped = 0;
+int yawMapped = 0;
+int pitchMapped = 0;
 
+//==============================================SETUP==============================================
 void setup() {
-    Serial.begin(4800);
+    Serial.begin(4800); //TODO: At 4600 only for testing
     Serial.println("Initializing system...");
 
     // Attach servos
@@ -53,14 +59,8 @@ void setup() {
     pitchServo.attach(pitchPin);
     feedServo.attach(feedPin);
     flywheelESC.attach(flywheelPin);
-    leftWheel.attach(leftWheelPin);
-    rightWheel.attach(rightWheelPin);
-
-    // Set button pins as input with pull-up resistors
-    pinMode(dpadUp, INPUT_PULLUP);
-    pinMode(dpadDown, INPUT_PULLUP);
-    pinMode(dpadLeft, INPUT_PULLUP);
-    pinMode(dpadRight, INPUT_PULLUP);
+    leftWheel.attach(frontWheelPin);
+    rightWheel.attach(backWheelPin);
 
     // Initialize servos to neutral position
     yawServo.write(90);
@@ -69,6 +69,8 @@ void setup() {
     flywheelESC.write(0);
     leftWheel.write(90);
     rightWheel.write(90);
+
+    Serial.println("Servos initialized..."); 
 
     // Initialize MMA8451 accelerometer
     if (!mma.begin()) {
