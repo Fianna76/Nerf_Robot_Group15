@@ -2,6 +2,7 @@
 #include <Adafruit_MMA8451.h>
 #include <Adafruit_Sensor.h>
 #include <Servo.h>
+#include <OneButton.h>
 
 // ========+++- [Global Variable Setup] -+++========
 
@@ -19,29 +20,37 @@ unsigned long currentMillis;
 Servo yawServo;
 Servo pitchServo;
 Servo feedServo;
-Servo flywheelESC;
-Servo leftWheel;
-Servo rightWheel;
+Servo flywheelServo;
+Servo frontWheel;
+Servo backWheel;
 
 // Pin definitions
 const int yawPin = 9;
 const int pitchPin = 10;
 const int feedPin = 6;
 const int flywheelPin = 5;
-const int frontWheelPin = 11;  // Left wheel servo
-const int backWheelPin = 12; // Right wheel servo
+const int frontWheelPin = 11;  
+const int backWheelPin = 12; 
 
+boolean flywheelEnabled = false;
 
-// --------+++= [Joystick] =+++--------
+// --------+++= [Analogue Inputs] =+++--------
 const int joystickX = A0; // Yaw control
 const int joystickY = A1; // Pitch control
 
+const int potPin = A2; //Potentiometer 
+
 
 // --------+++= [D-Pad] =+++--------
-const int dpadUp = 4;
-const int dpadDown = 7;
-const int dpadLeft = 2;
-const int dpadRight = 3;
+const int dpadUpPin = 4;
+const int dpadDownPin = 7;
+const int dpadLeftPin = 2;
+const int dpadRightPin = 3;
+
+OneButton dpadUp(dpadUpPin, true); //True for Active LOW pull-up
+OneButton dpadDown(dpadDownPin, true);
+OneButton dpadLeft(dpadLeftPin, true);
+OneButton dpadRight(dpadRightPin, true);
 
 // --------+++= [LCD Display] =+++--------
 
@@ -81,6 +90,22 @@ int leftWheelSpeed = 90;
 int rightWheelSpeed = 90;
 int speed = 0; // 7Seg Display
 
+// ========+++- [Helper Function Declarations] -+++========
+
+// Changes speed based on angle of controller
+void speedChange();
+
+// Stops all motion on button press
+void stop();
+
+// Toggles flywheel input from potentiometer (on button press)
+void flywheelToggle();
+
+// Toggles between Micro/Macro adjustments of aim with joystick (on button press)
+void joystickToggle();
+
+// Fires a single bullet on button press
+void fire();
 
 //==============================================SETUP==============================================
 void setup() {
@@ -91,20 +116,36 @@ void setup() {
     yawServo.attach(yawPin);
     pitchServo.attach(pitchPin);
     feedServo.attach(feedPin);
-    flywheelESC.attach(flywheelPin);
-    leftWheel.attach(frontWheelPin);
-    rightWheel.attach(backWheelPin);
+    flywheelServo.attach(flywheelPin);
+    frontWheel.attach(frontWheelPin);
+    backWheel.attach(backWheelPin);
 
     // Initialize servos to neutral position
     yawServo.write(90);
     pitchServo.write(90);
     feedServo.write(90);
-    flywheelESC.write(0);
-    leftWheel.write(90);
-    rightWheel.write(90);
+    flywheelServo.write(0);
+    frontWheel.write(90);
+    backWheel.write(90);
 
     Serial.println("Servos initialized..."); 
 
+    // Initialize Buttons
+    pinMode(dpadUp, INPUT_PULLUP);
+    dpadUp.attachClick(stop()); //Single Click 
+
+    pinMode(dpadDown, INPUT_PULLUP);
+    dpadDown.attachClick(flywheelToggle);
+
+    pinMode(dpadLeft, INPUT_PULLUP);
+    dpadLeft.attachClick(fire()); //TODO: Determine something for this/move fire integration
+
+    pinMode(dpadRight, INPUT_PULLUP);
+    dpadRight.attachClick(joystickToggle);
+
+    Serial.println("Buttons initialized..."); 
+
+    // Initialize BCD Encoder
     pinMode(BCD_A, OUTPUT);
     pinMode(BCD_B, OUTPUT);
     pinMode(BCD_C, OUTPUT);
@@ -112,6 +153,7 @@ void setup() {
 
     speed = 0;
 
+    Serial.println("7Seg initialized..."); 
 
     // Initialize MMA8451 accelerometer
     if (!mma.begin()) {
@@ -122,78 +164,42 @@ void setup() {
 
     // Set MMA8451 sensitivity (2G range for better precision)
     mma.setRange(MMA8451_RANGE_2_G);
-
-    
-    
 }
 
 void loop() {
     // --------+++= [Read New Data] =+++--------
     // Read new tilt data
     mma.read();
+
     // Read joystick values
     int joyX = analogRead(joystickX);
     int joyY = analogRead(joystickY);
+    // Map joystick values
+    yawSpeed = map(joyX, 0, 1023, 0, 180); 
+    pitchSpeed = map(joyY, 0, 1023, 0, 180); 
+
+    // Read potentiometer for flywheel speed & map values
+    int potValue = analogRead(potPin);
+    flywheelSpeed = map(potValue, 0, 1023, 30, 165);
+
+    // Read buttons to see if there's an input
+    dpadUp.tick();
+    dpadDown.tick();
+    dpadLeft.tick();
+    dpadRight.tick();
     
     // --------+++= [Update LCD] =+++--------
     //Display speed to LCD/Update it based on new mma data
     currentMillis = millis();
-    speedChange();
-      
-    // Map joystick values (-100 to 100) using original logic
-    if (joyX < 512) {
-      yawMapped = map(joyX, 0, 512, 91, 180);
-      yawSpeed = yawMapped;
-    } else if (joyX > 512) {
-      yawMapped = map(joyX, 512, 1023, 89, 0);
-      yawSpeed = yawMapped;
-    }
-    if (joyY < 512) {
-      pitchMapped = map(joyY, 0, 512, 91, 180);
-      pitchSpeed = pitchMapped;
-    } else if (joyY > 512) {
-      pitchMapped = map(joyY, 512, 1023, 89, 0);
-      pitchSpeed = pitchMapped;
-    }
+    speedChange(); 
 
-    
-
-    // TODO: Remove trigger code
-
-    // Read LT trigger for flywheel speed
-    int ltValue = analogRead(ltTrigger);
-    flywheelSpeed = constrain(map(ltValue, 25, 810, 165, 30), 30, 165);
-
-    // Read RT trigger for feeding mechanism
-    int rtValue = analogRead(rtTrigger);
-    feedPosition = (rtValue < 130) ? 130 : 25;
-
-    // Read accelerometer data
-    mma.read();
-    sensors_event_t event;
-    mma.getEvent(&event);
-
-    float xTilt = event.acceleration.x; // Left/Right tilt
-
-    // Move wheels based on tilt
-    if (xTilt > 4.0) {  // Tilted right
-        leftWheelSpeed = 120;
-        rightWheelSpeed = 60; // Opposite direction
-    } else if (xTilt < -4.0) {  // Tilted left
-        leftWheelSpeed = 60;
-        rightWheelSpeed = 120; // Opposite direction
-    } else {  // No tilt
-        leftWheelSpeed = 88;
-        rightWheelSpeed = 90;
-    }
-
-    // Write values to servos
+    // --------+++= [Generate Servo Outputs] =+++--------
     yawServo.write(yawSpeed);
     pitchServo.write(pitchSpeed);
-    flywheelESC.write(flywheelSpeed);
+    if(flywheelEnabled) { flywheelServo.write(flywheelSpeed); }
     feedServo.write(feedPosition);
-    leftWheel.write(leftWheelSpeed);
-    rightWheel.write(rightWheelSpeed);
+    frontWheel.write(leftWheelSpeed);
+    backWheel.write(rightWheelSpeed);
 
     // Debugging output
     Serial.print("Yaw speed: "); Serial.print(yawSpeed);
@@ -205,10 +211,17 @@ void loop() {
     delay(10); // Small delay for stability
 }
 
+//==========================================HELPER FUNCTIONs==========================================
+
+// Fires on 
+void fire() {
+  feedPosition = (feedPosition == 25) ? 130 : 25;
+}
+
 // Changes speed based on angle of controller
 void speedChange() {
     // We check the mma values in the y axis to see if the controller is tilted forward or backwards
-    // "Forwards" and "Backwards" are hardcoded angles in the first condition of the if fireStatements
+    // "Forwards" and "Backwards" are hardcoded angles in the first condition of the if conditions
     //
     // We also only increment/decrement speed after the time (in milliseconds) set in TILT_INTERVAL has passed
     // This means the speed change from tilting should act as a single "bump" in a direction, or it can 
