@@ -20,7 +20,7 @@ unsigned long currentMillis;
 Servo yawServo;
 Servo pitchServo;
 Servo feedServo;
-Servo flywheelServo;
+Servo flywheelsServo;
 Servo frontWheel;
 Servo backWheel;
 
@@ -28,7 +28,7 @@ Servo backWheel;
 const int yawPin = 9;
 const int pitchPin = 10;
 const int feedPin = 6;
-const int flywheelPin = 5;
+const int flywheelsPin = 5;
 const int frontWheelPin = 11;  
 const int backWheelPin = 12; 
 
@@ -40,7 +40,7 @@ const int backWheelPin = 12;
 const int joystickX = A0; // Yaw control
 const int joystickY = A1; // Pitch control
 
-const int potPin = A5; //Potentiometer 
+const int potPin = A2; //Potentiometer 
 
 // --------+++= [D-Pad] =+++--------
 const int dpadUpPin = 4;
@@ -85,9 +85,9 @@ int lastJoyY;
 boolean fineControl = false;
 
 // Firing
-int flywheelSpeed = 0;
+int flywheelsSpeed = 0;
 int feedPosition = 25;  // Default position
-boolean flywheelEnabled = false;
+boolean flywheelsEnabled = false;
 
 // Movment
 int frontWheelSpeed = 90;
@@ -105,8 +105,8 @@ void directionChange();
 // Stops all motion on button press
 void stop();
 
-// Toggles flywheel input from potentiometer (on button press)
-void flywheelToggle();
+// Toggles flywheels input from potentiometer (on button press)
+void flywheelsToggle();
 
 // Toggles between Micro/Macro adjustments of aim with joystick (on button press)
 void joystickToggle();
@@ -123,7 +123,7 @@ void setup() {
     yawServo.attach(yawPin);
     pitchServo.attach(pitchPin);
     feedServo.attach(feedPin);
-    flywheelServo.attach(flywheelPin);
+    flywheelsServo.attach(flywheelsPin);
     frontWheel.attach(frontWheelPin);
     backWheel.attach(backWheelPin);
 
@@ -131,7 +131,7 @@ void setup() {
     yawServo.write(90);
     pitchServo.write(90);
     feedServo.write(90);
-    flywheelServo.write(0);
+    flywheelsServo.write(0);
     frontWheel.write(90);
     backWheel.write(90);
 
@@ -142,7 +142,7 @@ void setup() {
     dpadUp.attachClick(stop()); //Single Click 
 
     pinMode(dpadDown, INPUT_PULLUP);
-    dpadDown.attachClick(flywheelToggle);
+    dpadDown.attachClick(flywheelsToggle);
 
     pinMode(dpadLeft, INPUT_PULLUP);
     dpadLeft.attachClick(fire()); //TODO: Determine something for this/move fire integration
@@ -197,9 +197,9 @@ void loop() {
       pitchSpeed = map(joyY, 0, 1023, 0, 180);
     } 
 
-    // Read potentiometer for flywheel speed & map values
+    // Read potentiometer for flywheels speed & map values
     int potValue = analogRead(potPin);
-    flywheelSpeed = map(potValue, 0, 1023, 30, 165);
+    flywheelsSpeed = map(potValue, 0, 1023, 30, 165);
 
     
     // --------+++= [Update LCD] =+++--------
@@ -222,8 +222,8 @@ void loop() {
     frontWheel.write(frontWheelSpeed);
     backWheel.write(backWheelSpeed);
 
-    // Only write flywheel values out while its enabled (state controlled by button press)
-    flywheelEnabled ? flywheelServo.write(flywheelSpeed) : void();
+    // Only write flywheels values out while its enabled (state controlled by button press)
+    flywheelsEnabled ? flywheelsServo.write(flywheelsSpeed) : void();
 
     // Debugging output
     Serial.print("Yaw speed: "); Serial.print(yawSpeed);
@@ -241,22 +241,26 @@ void loop() {
 // Fires on button press - might not work with click, try integrating press/release
 void stop()
 {
+  Serial.println("Top Clicked!");
   frontWheelSpeed = WHEEL_NEUTRAL;
   backWheelSpeed = WHEEL_NEUTRAL;
 }
 
 void fire() {
+  Serial.println("Fire (Left) Clicked!");
   feedPosition = (feedPosition == 25) ? 130 : 25;
 }
 
 // Toggles the opposite of the currrent enable condition 
-void flyWheelToggle()
+void flywheelsToggle()
 {
-  flywheelEnabled = !flywheelEnabled;
+  Serial.println("Right Clicked!");
+  flywheelsEnabled = !flywheelsEnabled;
 }
 
 void joyStickToggle()
 {
+  Serial.println("Bottom Clicked!");
   fineControl = !fineControl;
 
   if(fineControl)
