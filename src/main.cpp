@@ -116,7 +116,7 @@ void fire();
 
 //==============================================SETUP==============================================
 void setup() {
-    Serial.begin(4800); //TODO: At 4600 only for testing
+    Serial.begin(9600); //TODO: At 4600 only for testing
     Serial.println("Initializing system...");
 
     // Attach servos
@@ -138,16 +138,16 @@ void setup() {
     Serial.println("Servos initialized..."); 
 
     // Initialize Buttons
-    pinMode(dpadUp, INPUT_PULLUP);
-    dpadUp.attachClick(stop()); //Single Click 
+   
+    dpadUp.attachClick(stop); //Single Click 
 
-    pinMode(dpadDown, INPUT_PULLUP);
+
     dpadDown.attachClick(flywheelsToggle);
 
-    pinMode(dpadLeft, INPUT_PULLUP);
-    dpadLeft.attachClick(fire()); //TODO: Determine something for this/move fire integration
+   
+    dpadLeft.attachClick(fire); //TODO: Determine something for this/move fire integration
 
-    pinMode(dpadRight, INPUT_PULLUP);
+  
     dpadRight.attachClick(joystickToggle);
 
     Serial.println("Buttons initialized..."); 
@@ -188,8 +188,8 @@ void loop() {
       int fineJoyX = map(joyX, 0, 1023, max(lastJoyX - 200, 0), min(lastJoyX + 200, 1023));
       int fineJoyY = map(joyY, 0, 1023, max(lastJoyY - 200, 0), min(lastJoyY + 200, 1023));
 
-      yawSpeed = map(FineJoyX, 0, 1023, 0, 180);
-      pitchSpeed = map(FineJoyY, 0, 1023, 0, 180);
+      yawSpeed = map(fineJoyX, 0, 1023, 0, 180);
+      pitchSpeed = map(fineJoyY, 0, 1023, 0, 180);
     } 
     else {
       // Full range mapping for large control
@@ -229,7 +229,7 @@ void loop() {
     Serial.print("Yaw speed: "); Serial.print(yawSpeed);
     Serial.print(" | Pitch speed: "); Serial.print(pitchSpeed);
     Serial.print(" | X Tilt: "); Serial.print(mma.x / 4096.0f);
-    Serial.print(" | Y Tilt: "); Serial.print(mma.Y / 4096.0f);
+    Serial.print(" | Y Tilt: "); Serial.print(mma.y / 4096.0f);
     Serial.print(" | Front Wheel: "); Serial.print(frontWheelSpeed);
     Serial.print(" | Back Wheel: "); Serial.println(backWheelSpeed);
 
@@ -258,7 +258,7 @@ void flywheelsToggle()
   flywheelsEnabled = !flywheelsEnabled;
 }
 
-void joyStickToggle()
+void joystickToggle()
 {
   Serial.println("Bottom Clicked!");
   fineControl = !fineControl;
@@ -324,7 +324,7 @@ void directionChange()
   else if((mma.x / 4096.0f) <= -0.25)
   {
       frontWheelSpeed = minSpeed;
-      rightWheelSpeed = maxSpeed;
+      backWheelSpeed = maxSpeed;
   }
   // Neutral
   else
