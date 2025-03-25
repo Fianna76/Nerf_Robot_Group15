@@ -34,12 +34,15 @@ const int backWheelPin = 12;
 
 boolean flywheelEnabled = false;
 
+#define WHEEL_TOP_SPEED 120
+#define WHEEL_BOTTOM_SPEED 60
+#define WHEEL_NEUTRAL 90
+
 // --------+++= [Analogue Inputs] =+++--------
 const int joystickX = A0; // Yaw control
 const int joystickY = A1; // Pitch control
 
-const int potPin = A2; //Potentiometer 
-
+const int potPin = A5; //Potentiometer 
 
 // --------+++= [D-Pad] =+++--------
 const int dpadUpPin = 4;
@@ -86,14 +89,17 @@ int flywheelSpeed = 0;
 int feedPosition = 25;  // Default position
 
 // Movment
-int leftWheelSpeed = 90;
-int rightWheelSpeed = 90;
+int frontWheelSpeed = 90;
+int backWheelSpeed = 90;
 int speed = 0; // 7Seg Display
 
 // ========+++- [Helper Function Declarations] -+++========
 
 // Changes speed based on angle of controller
 void speedChange();
+
+//Updates the direction to move based on the angle of the controller
+void directionChange();
 
 // Stops all motion on button press
 void stop();
@@ -182,40 +188,58 @@ void loop() {
     int potValue = analogRead(potPin);
     flywheelSpeed = map(potValue, 0, 1023, 30, 165);
 
-    // Read buttons to see if there's an input
-    dpadUp.tick();
-    dpadDown.tick();
-    dpadLeft.tick();
-    dpadRight.tick();
     
     // --------+++= [Update LCD] =+++--------
     //Display speed to LCD/Update it based on new mma data
     currentMillis = millis();
     speedChange(); 
+    directionChange();
+
+    // --------+++= [Button Handling] =+++--------
+    // Read buttons to see if there's an input - this could change values!
+    dpadUp.tick();
+    dpadDown.tick();
+    dpadLeft.tick();
+    dpadRight.tick();
 
     // --------+++= [Generate Servo Outputs] =+++--------
     yawServo.write(yawSpeed);
     pitchServo.write(pitchSpeed);
-    if(flywheelEnabled) { flywheelServo.write(flywheelSpeed); }
     feedServo.write(feedPosition);
-    frontWheel.write(leftWheelSpeed);
-    backWheel.write(rightWheelSpeed);
+    frontWheel.write(frontWheelSpeed);
+    backWheel.write(backWheelSpeed);
+
+    // Only write flywheel values out while its enabled (state controlled by button press)
+    flywheelEnabled ? flywheelServo.write(flywheelSpeed) : void();
 
     // Debugging output
     Serial.print("Yaw speed: "); Serial.print(yawSpeed);
     Serial.print(" | Pitch speed: "); Serial.print(pitchSpeed);
-    Serial.print(" | X Tilt: "); Serial.print(xTilt);
-    Serial.print(" | Left Wheel: "); Serial.print(leftWheelSpeed);
-    Serial.print(" | Right Wheel: "); Serial.println(rightWheelSpeed);
+    Serial.print(" | X Tilt: "); Serial.print(mma.x / 4096.0f);
+    Serial.print(" | Y Tilt: "); Serial.print(mma.Y / 4096.0f);
+    Serial.print(" | Front Wheel: "); Serial.print(frontWheelSpeed);
+    Serial.print(" | Back Wheel: "); Serial.println(backWheelSpeed);
 
     delay(10); // Small delay for stability
 }
 
 //==========================================HELPER FUNCTIONs==========================================
 
-// Fires on 
+// Fires on button press - might not work with click, try integrating press/release
+void stop()
+{
+  frontWheelSpeed = WHEEL_NEUTRAL;
+  backWheelSpeed = WHEEL_NEUTRAL;
+}
+
 void fire() {
   feedPosition = (feedPosition == 25) ? 130 : 25;
+}
+
+// Toggles the opposite of the currrent enable condition 
+void flyWheelToggle()
+{
+  flywheelEnabled = !flywheelEnabled;
 }
 
 // Changes speed based on angle of controller
@@ -254,4 +278,30 @@ void speedChange() {
     digitalWrite(BCD_D, bcdLookup[speed][0]);
 
     // Serial.println(speed);
+}
+
+// Set the speed of our output to our wheels based off the tilt sensor direction and value of "speed"
+void directionChange()
+{
+  // Map our speed to the actual PWM values we send out
+  int maxSpeed = map(speed,0,9,WHEEL_NEUTRAL,WHEEL_TOP_SPEED);
+  int minSpeed = map(speed,0,9,WHEEL_NEUTRAL,WHEEL_BOTTOM_SPEED);
+  
+  // Right
+  if((mma.x / 4096.0f) >= 0.25f) {
+      frontWheelSpeed = maxSpeed;
+      backWheelSpeed = minSpeed;
+  }
+  // Left
+  else if((mma.x / 4096.0f) <= -0.25)
+  {
+      frontWheelSpeed = minSpeed;
+      rightWheelSpeed = maxSpeed;
+  }
+  // Neutral
+  else
+  {
+    frontWheelSpeed = WHEEL_NEUTRAL;
+    backWheelSpeed = WHEEL_NEUTRAL;
+  }
 }

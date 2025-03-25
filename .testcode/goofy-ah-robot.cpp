@@ -20,7 +20,7 @@ Servo yawServo;
 Servo pitchServo;
 Servo feedServo;
 Servo flywheelServo;
-Servo frontWheel;
+Servo leftWheel;
 Servo rightWheel;
 
 // Pin definitions
@@ -92,7 +92,7 @@ void setup() {
     pitchServo.attach(pitchPin);
     feedServo.attach(feedPin);
     flywheelServo.attach(flywheelPin);
-    frontWheel.attach(frontWheelPin);
+    leftWheel.attach(frontWheelPin);
     rightWheel.attach(backWheelPin);
 
     // Initialize servos to neutral position
@@ -100,7 +100,7 @@ void setup() {
     pitchServo.write(90);
     feedServo.write(90);
     flywheelServo.write(0);
-    frontWheel.write(90);
+    leftWheel.write(90);
     rightWheel.write(90);
 
     Serial.println("Servos initialized..."); 
@@ -192,7 +192,7 @@ void loop() {
     pitchServo.write(pitchSpeed);
     flywheelServo.write(flywheelSpeed);
     feedServo.write(feedPosition);
-    frontWheel.write(leftWheelSpeed);
+    leftWheel.write(leftWheelSpeed);
     rightWheel.write(rightWheelSpeed);
 
     // Debugging output
