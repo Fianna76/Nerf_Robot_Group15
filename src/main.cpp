@@ -2,7 +2,7 @@
 #include <Adafruit_MMA8451.h>
 #include <Adafruit_Sensor.h>
 #include <Servo.h>
-#include <OneButton.h>
+// #include <OneButton.h>
 
 // ========+++- [Global Variable Setup] -+++========
 
@@ -35,10 +35,10 @@ const int joystickY = A1; // Pitch control
 const int potPin = A2; //Potentiometer 
 
 // --------+++= [D-Pad] =+++--------
-const int dpadUpPin = 4;
-const int dpadDownPin = 7;
+const int dpadUpPin = 3;
+const int dpadDownPin = 4;
 const int dpadLeftPin = 2;
-const int dpadRightPin = 3;
+const int dpadRightPin = 7;
 
 // OneButton dpadUp(dpadUpPin, false); //False for Active HIGH pull-up
 // OneButton dpadDown(dpadDownPin, false);
@@ -91,7 +91,7 @@ boolean flywheelsEnabled = true;
 
 #define STARTPOS  25
 #define FINALPOS 130 
-#define FIREDELAY (250UL)
+#define FIREDELAY (150UL)
 int fireState = 0;
 bool isFiring = false;
 unsigned long firePreviousMillis = 0;
@@ -103,7 +103,7 @@ unsigned long firePreviousMillis = 0;
 
 int frontWheelSpeed = 90;
 int backWheelSpeed = 90;
-int speed = 0; // 7Seg Display
+int speed = 1; // 7Seg Display
 
 // ========+++- [Helper Function Declarations] -+++========
 
@@ -164,13 +164,14 @@ void setup() {
     pinMode(dpadRightPin, INPUT_PULLUP); 
 
 
-    // dpadUp.attachClick(stop); //Single Click 
+    // TODO: Test if onebutton actually works!
+    // dpadUp.attachClick(fire); //Single Click 
 
 
     // dpadDown.attachClick(flywheelsToggle);
 
    
-    // dpadLeft.attachClick(fire); //TODO: Determine something for this/move fire integration
+    // // dpadLeft.attachClick(fire); //TODO: Determine something for this/move fire integration
 
   
     // dpadRight.attachClick(joystickToggle);
@@ -187,21 +188,21 @@ void setup() {
 
     Serial.println("7Seg initialized..."); 
 
-    // // Initialize MMA8451 accelerometer
-    // if (!mma.begin()) {
-    //     Serial.println("MMA8451 not found! Check wiring.");
-    //     while (1);
-    // }
-    // Serial.println("MMA8451 detected successfully!");
+    // Initialize MMA8451 accelerometer
+    if (!mma.begin()) {
+        Serial.println("MMA8451 not found! Check wiring.");
+        while (1);
+    }
+    Serial.println("MMA8451 detected successfully!");
 
-    // // Set MMA8451 sensitivity (2G range for better precision)
-    // mma.setRange(MMA8451_RANGE_2_G);
+    // Set MMA8451 sensitivity (2G range for better precision)
+    mma.setRange(MMA8451_RANGE_2_G);
 }
 
 void loop() {
     // --------+++= [Read New Data] =+++--------
     // // Read new tilt data
-    // mma.read();
+    mma.read();
 
     currentMillis = millis();
 
@@ -231,21 +232,21 @@ void loop() {
     
     // --------+++= [Update LCD] =+++--------
     //Display speed to LCD/Update it based on new mma data
-    // currentMillis = millis();
-    // speedChange(); 
-    // directionChange();
+    currentMillis = millis();
+    speedChange(); 
+    directionChange();
 
     // --------+++= [Button Handling] =+++--------
     // Read buttons to see if there's an input - this could change values!
-    if (digitalRead(dpadUpPin) == LOW) { fire(); }
-    // if (digitalRead(dpadDownPin) == LOW) { Serial.println("Down Touched"); delay(2000); }
-    if (digitalRead(dpadLeftPin) == LOW) { Serial.println("Left Touched"); delay(2000); }
-    if (digitalRead(dpadRightPin) == LOW) { Serial.println("Right Touched"); delay(2000); }
+    if (digitalRead(dpadUpPin) == LOW) { Serial.println("Up Touched"); fire(); }
+     if (digitalRead(dpadDownPin) == LOW) { Serial.println("Down Touched"); joystickToggle(); }
+    if (digitalRead(dpadLeftPin) == LOW) { Serial.println("Left Touched");  stop(); }
+    if (digitalRead(dpadRightPin) == LOW) { Serial.println("Right Touched");  flywheelsToggle(); }
 
     // --------+++= [Generate Servo Outputs] =+++--------
     yawServo.write(yawSpeed);
     pitchServo.write(pitchSpeed);
-    feedServo.write(feedPosition);
+    // feedServo.write(feedPosition);
     frontWheel.write(frontWheelSpeed);
     backWheel.write(backWheelSpeed);
 
@@ -253,18 +254,20 @@ void loop() {
     if(flywheelsEnabled) { flywheelsServo.write(flywheelsSpeed);}
 
     // Debugging output
+    // Serial.println("");
     // Serial.print("Yaw speed: "); Serial.print(yawSpeed);
     // Serial.print(" | Pitch speed: "); Serial.print(pitchSpeed);
     // Serial.print(" | X Tilt: "); Serial.print(mma.x / 4096.0f);
     // Serial.print(" | Y Tilt: "); Serial.print(mma.y / 4096.0f);
+    // Serial.print(" | Speed: "); Serial.print(speed);
     // Serial.print(" | Front Wheel: "); Serial.print(frontWheelSpeed);
     // Serial.print(" | Back Wheel: "); Serial.println(backWheelSpeed);
-    // Serial.println("Pot Value: "); Serial.print(potValue);
+    // Serial.print("Pot Value: "); Serial.print(potValue);
 
     // Serial.println("JoystickX: "); Serial.print(joystickX);
     // Serial.print(" | JoystickY: "); Serial.print(joystickY);
 
-    delay(100); // Small delay for stability
+    delay(10); // Small delay for stability
 }
 
 //==========================================HELPER FUNCTIONs==========================================
@@ -272,15 +275,17 @@ void loop() {
 // Fires on button press - might not work with click, try integrating press/release
 void stop()
 {
-  Serial.println("Top Clicked!");
+  
   frontWheelSpeed = WHEEL_NEUTRAL;
   backWheelSpeed = WHEEL_NEUTRAL;
 }
 
 void fire() {
+  Serial.println("Fire Touched");
+  
   if(currentMillis - butPreviousMillis >= BUT_INTERVAL)
   {
-    Serial.println("Fire (Left) Clicked!");
+
     isFiring = true;
     fireLoop();
     butPreviousMillis = currentMillis;
@@ -293,14 +298,14 @@ void fireLoop() {
 
   switch (fireState) {
       case 0: // Move to STARTPOS
-          firingServo.write(STARTPOS);
+          feedServo.write(STARTPOS);
           firePreviousMillis = currentMillis;
           fireState = 1;
           break;
 
       case 1: // Wait, then move to FINALPOS
           if (currentMillis - firePreviousMillis >= FIREDELAY) {
-              firingServo.write(FINALPOS);
+              feedServo.write(FINALPOS);
               firePreviousMillis = currentMillis;
               fireState = 2;
           }
@@ -308,7 +313,7 @@ void fireLoop() {
 
       case 2: // Wait, then move back to STARTPOS
           if (currentMillis - firePreviousMillis >= FIREDELAY) {
-              firingServo.write(STARTPOS);
+              feedServo.write(STARTPOS);
                 isFiring = false; // Stop firing after cycle
                 fireState = 0; // Reset state
           }
@@ -331,7 +336,6 @@ void flywheelsToggle()
 
 void joystickToggle()
 {
-  Serial.println("Bottom Clicked!");
   fineControl = !fineControl;
 
   if(fineControl)
@@ -351,24 +355,25 @@ void speedChange() {
     // be held to gradually increase the speed value
     // TODO: Establish another function to use button inputs to quickly set speed to max/min
     
+    // Ensure digit is within valid range
+    if (speed < 1 || speed > 4) { speed = 1; return;}
     
     // Detect forward rotation (Increase Speed)
-    if((mma.y / 4096.0f) >= 0.5f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL && speed < 9)
+    if((mma.y / 4096.0f) <= -0.75f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL && speed < 9)
     {
         speed++;
         tiltPreviousMillis = currentMillis;
         // Serial.print("Speed up: "); Serial.println(speed);
     }
     // Backwards rotation decreases speed
-    else if((mma.y / 4096.0f) <= -0.5f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL && speed > 0)
+    else if((mma.y / 4096.0f) >= 0.75f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL && speed > 0)
     {
         speed--;
         tiltPreviousMillis = currentMillis;
         // Serial.print("Speed down: "); Serial.println(speed);
     }
 
-    // Ensure digit is within valid range
-    if (speed < 0 || speed > 9) return;
+    
 
     // Write the BCD bits to the 74LS47 inputs
     digitalWrite(BCD_A, bcdLookup[speed][3]);
@@ -383,16 +388,16 @@ void speedChange() {
 void directionChange()
 {
   // Map our speed to the actual PWM values we send out
-  int maxSpeed = map(speed,0,9,WHEEL_NEUTRAL,WHEEL_TOP_SPEED);
-  int minSpeed = map(speed,0,9,WHEEL_NEUTRAL,WHEEL_BOTTOM_SPEED);
+  int maxSpeed = map(speed,1,4,WHEEL_NEUTRAL,WHEEL_TOP_SPEED);
+  int minSpeed = map(speed,1,4,WHEEL_NEUTRAL,WHEEL_BOTTOM_SPEED);
   
   // Right
-  if((mma.x / 4096.0f) >= 0.25f) {
+  if((mma.x / 4096.0f) >= 0.5f) {
       frontWheelSpeed = maxSpeed;
       backWheelSpeed = minSpeed;
   }
   // Left
-  else if((mma.x / 4096.0f) <= -0.25)
+  else if((mma.x / 4096.0f) <= -0.5)
   {
       frontWheelSpeed = minSpeed;
       backWheelSpeed = maxSpeed;
