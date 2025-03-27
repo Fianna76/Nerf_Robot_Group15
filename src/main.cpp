@@ -71,14 +71,22 @@ const byte bcdLookup[10][4] = {
 // Timing
 unsigned long butPreviousMillis = 0;
 unsigned long tiltPreviousMillis = 0;
-#define BUT_INTERVAL (250UL)
+#define BUT_INTERVAL (100UL) //Delay on movement of fire arm
 #define TILT_INTERVAL (500UL)  // Delay speed changes (tickrate)
 
 unsigned long currentMillis;
 
+// Debounce
+#define NUM_BUTTONS 4
+#define DEBOUNCE_DELAY (50UL)
+const int buttonPins[NUM_BUTTONS] = {3, 4, 2, 7}; //IMPORTANT - ENSURE THESE ARE ALWAYS THE BUTTONS IN ORDER OF PIN DEFINITIONS
+boolean buttonState[NUM_BUTTONS] = {false}; 
+boolean lastButtonState[NUM_BUTTONS] = {false}; 
+unsigned long debouncePreviousMillis[NUM_BUTTONS] = {0};
+
 // Aiming
-int yawSpeed = 90;      // Centered at 90 (neutral)
-int pitchSpeed = 90;    // Centered at 90 (neutral)
+int yawSpeed = 88;      // Centered at 90 (neutral)
+int pitchSpeed = 87;    // Centered at 90 (neutral)
 int lastJoyX;
 int lastJoyY;
 
@@ -106,6 +114,9 @@ int backWheelSpeed = 90;
 int speed = 1; // 7Seg Display
 
 // ========+++- [Helper Function Declarations] -+++========
+
+// Debounces button inputs by checking against current system time
+void debounce();
 
 // Changes speed based on angle of controller
 void speedChange();
@@ -166,14 +177,8 @@ void setup() {
 
     // TODO: Test if onebutton actually works!
     // dpadUp.attachClick(fire); //Single Click 
-
-
     // dpadDown.attachClick(flywheelsToggle);
-
-   
     // // dpadLeft.attachClick(fire); //TODO: Determine something for this/move fire integration
-
-  
     // dpadRight.attachClick(joystickToggle);
 
     Serial.println("Buttons initialized..."); 
@@ -183,8 +188,6 @@ void setup() {
     pinMode(BCD_B, OUTPUT);
     pinMode(BCD_C, OUTPUT);
     pinMode(BCD_D, OUTPUT);
-
-    speed = 0;
 
     Serial.println("7Seg initialized..."); 
 
@@ -211,6 +214,7 @@ void loop() {
     int joyY = analogRead(joystickY);
     
     // Map joystick values
+    // TODO: Move repetive deadzone code to external function
     if (fineControl) {
       // Dynamic fine control range around last positions (max/min ensure we don't map outside our boundarys)
       int fineJoyX = map(joyX, 0, 1023, max(lastJoyX - 200, 0), min(lastJoyX + 200, 1023));
@@ -241,7 +245,8 @@ void loop() {
     } 
 
     // Read potentiometer for flywheels speed & map values
-    int potValue = analogRead(potPin);
+    if (flywheelsEnabled) { potValue = analogRead(potPin); } 
+    else { potValue = 0; }
     flywheelsSpeed = map(potValue, 0, 1023, 30, 165);
 
     
@@ -253,10 +258,12 @@ void loop() {
 
     // --------+++= [Button Handling] =+++--------
     // Read buttons to see if there's an input - this could change values!
-    if (digitalRead(dpadUpPin) == LOW) { Serial.println("Up Touched"); fire(); }
-     if (digitalRead(dpadDownPin) == LOW) { Serial.println("Down Touched"); joystickToggle(); }
-    if (digitalRead(dpadLeftPin) == LOW) { Serial.println("Left Touched");  stop(); }
-    if (digitalRead(dpadRightPin) == LOW) { Serial.println("Right Touched");  flywheelsToggle(); }
+    debounce(); //Read buttons with debouncing of the inputs
+
+    if (buttonPins[0] == LOW) { Serial.println("Up Touched"); fire(); }
+     if (buttonPins[1] == LOW) { Serial.println("Down Touched"); joystickToggle(); }
+    if (buttonPins[2] == LOW) { Serial.println("Left Touched");  stop(); }
+    if (buttonPins[3] == LOW) { Serial.println("Right Touched");  flywheelsToggle(); }
 
     // --------+++= [Generate Servo Outputs] =+++--------
     yawServo.write(yawSpeed);
@@ -287,10 +294,26 @@ void loop() {
 
 //==========================================HELPER FUNCTIONs==========================================
 
-// Fires on button press - might not work with click, try integrating press/release
+void debounce()
+{
+  for (int i = 0; i < NUM_BUTTONS; i++) {
+    bool reading = digitalRead(buttonPins[i]);  // Read button state
+
+    if (reading != lastButtonState[i]) {
+        lastDebounceTime[i] = millis();  // Reset debounce timer
+    }
+
+    if ((millis() - lastDebounceTime[i]) > DEBOUNCE_DELAY) {
+        buttonState[i] = reading;  // Stable state confirmed
+    }
+
+    lastButtonState[i] = reading;  // Save last raw reading
+}
+}
+
+
 void stop()
 {
-  
   frontWheelSpeed = WHEEL_NEUTRAL;
   backWheelSpeed = WHEEL_NEUTRAL;
 }
@@ -339,14 +362,11 @@ void fireLoop() {
 // Toggles the opposite of the currrent enable condition 
 void flywheelsToggle()
 {
-  if(currentMillis - butPreviousMillis >= BUT_INTERVAL)
-  {
-    Serial.println("Right Clicked!"); Serial.print("Enable Status: "); Serial.print(flywheelsEnabled);
+    Serial.println("flywheelsToggle touched | "); Serial.print("Enable Status: "); Serial.print(flywheelsEnabled);
+
     flywheelsEnabled = !flywheelsEnabled;
     flywheelsSpeed = 0;
-    butPreviousMillis = currentMillis;
-  }
-  
+    
 }
 
 void joystickToggle()
