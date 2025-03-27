@@ -215,29 +215,14 @@ void loop() {
       // Dynamic fine control range around last positions (max/min ensure we don't map outside our boundarys)
       int fineJoyX = map(joyX, 0, 1023, max(lastJoyX - 200, 0), min(lastJoyX + 200, 1023));
       int fineJoyY = map(joyY, 0, 1023, max(lastJoyY - 200, 0), min(lastJoyY + 200, 1023));
-      if(fineJoyX > 512) {
-        yawSpeed = map(fineJoyX, 518, 1023, 92, 180);
-      } else {
-        yawSpeed = map(fineJoyX, 0, 510, 0, 87);
-      }
-      if(fineJoyY > 512) {
-        pitchSpeed = map(fineJoyY, 518, 1023, 92, 180);
-      } else {
-        pitchSpeed = map(fineJoyY, 0, 510, 0, 87);
-      }
+
+      yawSpeed = map(fineJoyX, 0, 1023, 0, 180);
+      pitchSpeed = map(fineJoyY, 0, 1023, 0, 180);
     } 
     else {
       // Full range mapping for large control
-      if(joyX > 512) {
-        yawSpeed = map(joyX, 518, 1023, 92, 180);
-      } else {
-        yawSpeed = map(joyX, 0, 510, 0, 87);
-      }
-      if(joyX > 512) {
-        pitchSpeed = map(joyY, 518, 1023, 92, 180);
-      } else {
-        pitchSpeed = map(joyY, 0, 510, 0, 87);
-      }
+      yawSpeed = map(joyX, 0, 1023, 0, 180);
+      pitchSpeed = map(joyY, 0, 1023, 0, 180);
     } 
 
     // Read potentiometer for flywheels speed & map values
