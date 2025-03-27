@@ -78,7 +78,7 @@ unsigned long currentMillis;
 
 // Debounce
 #define NUM_BUTTONS 4
-#define DEBOUNCE_DELAY (50UL)
+#define DEBOUNCE_DELAY (100UL)
 const int buttonPins[NUM_BUTTONS] = {3, 4, 2, 7}; //IMPORTANT - ENSURE THESE ARE ALWAYS THE BUTTONS IN ORDER OF PIN DEFINITIONS
 boolean buttonState[NUM_BUTTONS] = {false}; 
 boolean lastButtonState[NUM_BUTTONS] = {false}; 
@@ -86,7 +86,7 @@ unsigned long debouncePreviousMillis[NUM_BUTTONS] = {0};
 
 // Aiming
 int yawSpeed = 88;      // Centered at 90 (neutral)
-int pitchSpeed = 87;    // Centered at 90 (neutral)
+int pitchSpeed = 92;    // Centered at 90 (neutral)
 int lastJoyX;
 int lastJoyY;
 
@@ -94,10 +94,11 @@ boolean fineControl = false;
 
 // Firing
 int flywheelsSpeed = 0;
-int feedPosition = 25;  // Default position
+int feedPosition = 30;  // Default position
 boolean flywheelsEnabled = true;
+int potValue;
 
-#define STARTPOS  25
+#define STARTPOS  30
 #define FINALPOS 130 
 #define FIREDELAY (150UL)
 int fireState = 0;
@@ -213,32 +214,34 @@ void loop() {
     int joyX = analogRead(joystickX);
     int joyY = analogRead(joystickY);
     
+  
+
     // Map joystick values
     // TODO: Move repetive deadzone code to external function
     if (fineControl) {
       // Dynamic fine control range around last positions (max/min ensure we don't map outside our boundarys)
       int fineJoyX = map(joyX, 0, 1023, max(lastJoyX - 200, 0), min(lastJoyX + 200, 1023));
       int fineJoyY = map(joyY, 0, 1023, max(lastJoyY - 200, 0), min(lastJoyY + 200, 1023));
-      if(fineJoyX > 512) {
-        yawSpeed = map(fineJoyX, 518, 1023, 92, 180);
-      } else {
-        yawSpeed = map(fineJoyX, 0, 510, 0, 87);
-      }
-      if(fineJoyY > 512) {
-        pitchSpeed = map(fineJoyY, 518, 1023, 92, 180);
-      } else {
-        pitchSpeed = map(fineJoyY, 0, 510, 0, 87);
-      }
+      // if(fineJoyX > 520) {
+      //   yawSpeed = map(fineJoyX, 518, 1023, 92, 180);
+      // } else {
+      //   yawSpeed = map(fineJoyX, 0, 510, 0, 89);
+      // }
+      // if(fineJoyY > 515) {
+      //   pitchSpeed = map(fineJoyY, 518, 1023, 92, 180);
+      // } else {
+      //   pitchSpeed = map(fineJoyY, 0, 510, 0, 89);
+      // }
     } 
     else {
       // Full range mapping for large control
-      if(joyX > 512) {
-        yawSpeed = map(joyX, 518, 1023, 92, 180);
+      if(joyX > 520) {
+        yawSpeed = map(joyX, 520, 1023, 92, 180);
       } else {
-        yawSpeed = map(joyX, 0, 510, 0, 87);
+        yawSpeed = map(joyX, 0, 514, 0, 90);
       }
-      if(joyX > 512) {
-        pitchSpeed = map(joyY, 518, 1023, 92, 180);
+      if(joyY > 515) {
+        pitchSpeed = map(joyY, 515, 1023, 92, 180);
       } else {
         pitchSpeed = map(joyY, 0, 510, 0, 87);
       }
@@ -260,10 +263,10 @@ void loop() {
     // Read buttons to see if there's an input - this could change values!
     debounce(); //Read buttons with debouncing of the inputs
 
-    if (buttonPins[0] == LOW) { Serial.println("Up Touched"); fire(); }
-     if (buttonPins[1] == LOW) { Serial.println("Down Touched"); joystickToggle(); }
-    if (buttonPins[2] == LOW) { Serial.println("Left Touched");  stop(); }
-    if (buttonPins[3] == LOW) { Serial.println("Right Touched");  flywheelsToggle(); }
+    if (!buttonState[0]) { Serial.println("Up Touched"); fire(); }
+    if (!buttonState[1]) { Serial.println("Down Touched"); } //joystickToggle();
+    if (!buttonState[2]) { Serial.println("Left Touched");  stop(); }
+    if (!buttonState[3]) { Serial.println("Right Touched");  flywheelsToggle(); }
 
     // --------+++= [Generate Servo Outputs] =+++--------
     yawServo.write(yawSpeed);
@@ -277,7 +280,9 @@ void loop() {
 
     // Debugging output
     // Serial.println("");
-    // Serial.print("Yaw speed: "); Serial.print(yawSpeed);
+    // Serial.print(" | JoyX | "); Serial.print(joyX);
+    // Serial.print(" | JoyY | "); Serial.print(joyY);
+    // Serial.print(" | Yaw speed: "); Serial.print(yawSpeed);
     // Serial.print(" | Pitch speed: "); Serial.print(pitchSpeed);
     // Serial.print(" | X Tilt: "); Serial.print(mma.x / 4096.0f);
     // Serial.print(" | Y Tilt: "); Serial.print(mma.y / 4096.0f);
@@ -296,16 +301,19 @@ void loop() {
 
 void debounce()
 {
+  Serial.println("");
   for (int i = 0; i < NUM_BUTTONS; i++) {
     bool reading = digitalRead(buttonPins[i]);  // Read button state
+    Serial.print(" | Button No "); Serial.print(i);
 
     if (reading != lastButtonState[i]) {
-        lastDebounceTime[i] = millis();  // Reset debounce timer
+        debouncePreviousMillis[i] = millis();  // Reset debounce timer
     }
 
-    if ((millis() - lastDebounceTime[i]) > DEBOUNCE_DELAY) {
+    if ((millis() - debouncePreviousMillis[i]) > DEBOUNCE_DELAY) {
         buttonState[i] = reading;  // Stable state confirmed
     }
+    Serial.print(" | State: "); Serial.print(buttonState[i]);
 
     lastButtonState[i] = reading;  // Save last raw reading
 }
@@ -391,10 +399,10 @@ void speedChange() {
     // TODO: Establish another function to use button inputs to quickly set speed to max/min
     
     // Ensure digit is within valid range
-    if (speed < 1 || speed > 4) { speed = 1; return;}
+    if (speed < 1 || speed > 4) { speed = 4; return;}
     
     // Detect forward rotation (Increase Speed)
-    if((mma.y / 4096.0f) <= -0.75f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL && speed < 9)
+    if((mma.y / 4096.0f) <= -0.75f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL && speed < 4)
     {
         speed++;
         tiltPreviousMillis = currentMillis;
