@@ -2,7 +2,7 @@
 #include <Adafruit_MMA8451.h>
 #include <Adafruit_Sensor.h>
 #include <Servo.h>
-// #include <OneButton.h>
+#include <OneButton.h>
 
 // ========+++- [Global Variable Setup] -+++========
 
@@ -40,10 +40,10 @@ const int dpadDownPin = 4;
 const int dpadLeftPin = 2;
 const int dpadRightPin = 7;
 
-// OneButton dpadUp(dpadUpPin, false); //False for Active HIGH pull-up
-// OneButton dpadDown(dpadDownPin, false);
-// OneButton dpadLeft(dpadLeftPin, false);
-// OneButton dpadRight(dpadRightPin, false);
+OneButton dpadUp(dpadUpPin, true); //False for Active HIGH pull-up
+OneButton dpadDown(dpadDownPin, true);
+OneButton dpadLeft(dpadLeftPin, true);
+OneButton dpadRight(dpadRightPin, true);
 
 // --------+++= [LCD Display] =+++--------
 
@@ -77,11 +77,11 @@ unsigned long tiltPreviousMillis = 0;
 unsigned long currentMillis;
 
 // Debounce
-#define NUM_BUTTONS 4
-#define DEBOUNCE_DELAY (100UL)
-const int buttonPins[NUM_BUTTONS] = {3, 4, 2, 7}; //IMPORTANT - ENSURE THESE ARE ALWAYS THE BUTTONS IN ORDER OF PIN DEFINITIONS
-boolean buttonState[NUM_BUTTONS] = {false}; 
-boolean lastButtonState[NUM_BUTTONS] = {false}; 
+#define NUM_BUTTONS 1
+#define DEBOUNCE_DELAY (15UL)
+const int buttonPins[NUM_BUTTONS] = {3}; //IMPORTANT - ENSURE THESE ARE ALWAYS THE BUTTONS IN ORDER OF PIN DEFINITIONS
+boolean buttonState[NUM_BUTTONS] = {true}; 
+boolean lastButtonState[NUM_BUTTONS] = {true}; 
 unsigned long debouncePreviousMillis[NUM_BUTTONS] = {0};
 
 // Aiming
@@ -99,8 +99,8 @@ boolean flywheelsEnabled = true;
 int potValue;
 
 #define STARTPOS  30
-#define FINALPOS 130 
-#define FIREDELAY (150UL)
+#define FINALPOS 120
+#define FIREDELAY (300UL)
 int fireState = 0;
 bool isFiring = false;
 unsigned long firePreviousMillis = 0;
@@ -136,8 +136,11 @@ void joystickToggle();
 
 // Fires a single bullet on button press
 void fire();
+// Handles the release of button (turn off full auto)
+void fireEnd();
 // Handles the position changes of the firing arm
 void fireLoop();
+
 
 //==============================================SETUP==============================================
 void setup() {
@@ -164,23 +167,28 @@ void setup() {
 
     Serial.println("Arming Sequence Begin...");
     flywheelsServo.write(45);
-    delay(1000);
+    delay(500);
+    flywheelsServo.write(150);
+    delay(500);
     flywheelsServo.write(0);
     Serial.println("Armed!!");
 
     // Initialize Buttons
     // Set button pins as input with pull-up resistors
-    pinMode(dpadUpPin, INPUT_PULLUP);
-    pinMode(dpadDownPin, INPUT_PULLUP);
-    pinMode(dpadLeftPin, INPUT_PULLUP);
-    pinMode(dpadRightPin, INPUT_PULLUP); 
+    // pinMode(dpadUpPin, INPUT_PULLUP);
+    // pinMode(dpadDownPin, INPUT_PULLUP);
+    // pinMode(dpadLeftPin, INPUT_PULLUP);
+    // pinMode(dpadRightPin, INPUT_PULLUP); 
 
 
-    // TODO: Test if onebutton actually works!
-    // dpadUp.attachClick(fire); //Single Click 
-    // dpadDown.attachClick(flywheelsToggle);
-    // // dpadLeft.attachClick(fire); //TODO: Determine something for this/move fire integration
-    // dpadRight.attachClick(joystickToggle);
+    // dpadUp.attachClick(fire);
+    dpadUp.attachLongPressStart(fire);
+    dpadUp.attachLongPressStop(fireEnd);
+    dpadDown.attachClick(flywheelsToggle);
+    dpadLeft.attachClick(joystickToggle); //TODO: Determine something for this/move fire integration
+    dpadRight.attachClick(joystickToggle);
+
+    
 
     Serial.println("Buttons initialized..."); 
 
@@ -220,18 +228,18 @@ void loop() {
     // TODO: Move repetive deadzone code to external function
     if (fineControl) {
       // Dynamic fine control range around last positions (max/min ensure we don't map outside our boundarys)
-      int fineJoyX = map(joyX, 0, 1023, max(lastJoyX - 200, 0), min(lastJoyX + 200, 1023));
-      int fineJoyY = map(joyY, 0, 1023, max(lastJoyY - 200, 0), min(lastJoyY + 200, 1023));
-      // if(fineJoyX > 520) {
-      //   yawSpeed = map(fineJoyX, 518, 1023, 92, 180);
-      // } else {
-      //   yawSpeed = map(fineJoyX, 0, 510, 0, 89);
-      // }
-      // if(fineJoyY > 515) {
-      //   pitchSpeed = map(fineJoyY, 518, 1023, 92, 180);
-      // } else {
-      //   pitchSpeed = map(fineJoyY, 0, 510, 0, 89);
-      // }
+      int fineJoyX = map(joyX, 0, 1023, max(lastJoyX - 600, 0), min(lastJoyX + 600, 1023));
+      int fineJoyY = map(joyY, 0, 1023, max(lastJoyY - 600, 0), min(lastJoyY + 600, 1023));
+      if(fineJoyX > 520) {
+        yawSpeed = map(joyX, 520, 1023, 92, 100);
+      } else {
+        yawSpeed = map(joyX, 0, 514, 80, 90);
+      }
+      if(fineJoyY > 515) {
+        pitchSpeed = map(joyY, 515, 1023, 92, 100);
+      } else {
+        pitchSpeed = map(joyY, 0, 510, 77, 87);
+      }
     } 
     else {
       // Full range mapping for large control
@@ -263,10 +271,16 @@ void loop() {
     // Read buttons to see if there's an input - this could change values!
     debounce(); //Read buttons with debouncing of the inputs
 
-    if (!buttonState[0]) { Serial.println("Up Touched"); fire(); }
-    if (!buttonState[1]) { Serial.println("Down Touched"); } //joystickToggle();
-    if (!buttonState[2]) { Serial.println("Left Touched");  stop(); }
-    if (!buttonState[3]) { Serial.println("Right Touched");  flywheelsToggle(); }
+    dpadUp.tick();
+    fireLoop();
+    dpadDown.tick();
+    dpadLeft.tick();
+    dpadRight.tick();
+
+    // if (!buttonState[0]) { Serial.println("Up Touched"); fire(); }
+    // if (!buttonState[1]) { Serial.println("Down Touched"); } //joystickToggle();
+    // if (!buttonState[2]) { Serial.println("Left Touched");  stop(); }
+    // if (!buttonState[3]) { Serial.println("Right Touched");  flywheelsToggle(); }
 
     // --------+++= [Generate Servo Outputs] =+++--------
     yawServo.write(yawSpeed);
@@ -276,10 +290,11 @@ void loop() {
     backWheel.write(backWheelSpeed);
 
     // Only write flywheels values out while its enabled (state controlled by button press)
-    if(flywheelsEnabled) { flywheelsServo.write(flywheelsSpeed);}
+    flywheelsServo.write(flywheelsSpeed);
 
     // Debugging output
     // Serial.println("");
+    // Serial.print(" | Feed Pos | "); Serial.print(feedPosition);
     // Serial.print(" | JoyX | "); Serial.print(joyX);
     // Serial.print(" | JoyY | "); Serial.print(joyY);
     // Serial.print(" | Yaw speed: "); Serial.print(yawSpeed);
@@ -293,30 +308,34 @@ void loop() {
 
     // Serial.println("JoystickX: "); Serial.print(joystickX);
     // Serial.print(" | JoystickY: "); Serial.print(joystickY);
-
-    delay(10); // Small delay for stability
 }
 
 //==========================================HELPER FUNCTIONs==========================================
 
 void debounce()
 {
-  Serial.println("");
+  // Serial.println("");
   for (int i = 0; i < NUM_BUTTONS; i++) {
     bool reading = digitalRead(buttonPins[i]);  // Read button state
-    Serial.print(" | Button No "); Serial.print(i);
+    // Serial.print(" | Button No "); Serial.print(i);
+    
 
     if (reading != lastButtonState[i]) {
         debouncePreviousMillis[i] = millis();  // Reset debounce timer
+        // Serial.print("NEW READING");
     }
 
     if ((millis() - debouncePreviousMillis[i]) > DEBOUNCE_DELAY) {
-        buttonState[i] = reading;  // Stable state confirmed
+      // Edge detection
+      if (reading != buttonState[i]) {
+        buttonState[i] = reading;  // Update only if stable
     }
-    Serial.print(" | State: "); Serial.print(buttonState[i]);
-
+      
+    }
     lastButtonState[i] = reading;  // Save last raw reading
-}
+    // Serial.print(" | State: | "); Serial.print(buttonState[i]);
+    // Serial.print(" | Last state: "); Serial.print(reading);
+  }
 }
 
 
@@ -327,41 +346,55 @@ void stop()
 }
 
 void fire() {
-  Serial.println("Fire Touched");
   
+  Serial.println("Fire Touched");
+  isFiring = true;
+
   if(currentMillis - butPreviousMillis >= BUT_INTERVAL)
   {
-
-    isFiring = true;
-    fireLoop();
+    
     butPreviousMillis = currentMillis;
   }
   
 }
+
+void fireEnd() {
+  Serial.println("Fire released");
+  isFiring = false;
+
+} 
 
 void fireLoop() {
   if (!isFiring) return; // Exit if the sequence isn't active
 
   switch (fireState) {
       case 0: // Move to STARTPOS
-          feedServo.write(STARTPOS);
+          feedPosition = STARTPOS;
+          feedServo.write(feedPosition);
           firePreviousMillis = currentMillis;
           fireState = 1;
+          Serial.println("State 0");
           break;
 
       case 1: // Wait, then move to FINALPOS
           if (currentMillis - firePreviousMillis >= FIREDELAY) {
-              feedServo.write(FINALPOS);
+            feedPosition = FINALPOS;  
+            feedServo.write(feedPosition);
               firePreviousMillis = currentMillis;
               fireState = 2;
+              Serial.println("State 1");
           }
           break;
 
       case 2: // Wait, then move back to STARTPOS
           if (currentMillis - firePreviousMillis >= FIREDELAY) {
-              feedServo.write(STARTPOS);
-                isFiring = false; // Stop firing after cycle
+            feedPosition = STARTPOS;  
+            firePreviousMillis = currentMillis;
+            feedServo.write(feedPosition);
+                // isFiring = false; // Stop firing after cycle
+                Serial.println("State 2");
                 fireState = 0; // Reset state
+                
           }
           break;
         }
@@ -379,6 +412,7 @@ void flywheelsToggle()
 
 void joystickToggle()
 {
+  Serial.println("JoystickToggle touched!");
   fineControl = !fineControl;
 
   if(fineControl)
@@ -449,6 +483,6 @@ void directionChange()
   else
   {
     frontWheelSpeed = WHEEL_NEUTRAL;
-    backWheelSpeed = WHEEL_NEUTRAL;
+    backWheelSpeed = 89;
   }
 }
