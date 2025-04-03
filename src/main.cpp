@@ -1,4 +1,5 @@
 #include <Wire.h>
+#include <avr/wdt.h>
 #include <Adafruit_MMA8451.h>
 #include <Adafruit_Sensor.h>
 #include <Servo.h>
@@ -27,6 +28,9 @@ const int feedPin = 6;
 const int flywheelsPin = 5;
 const int frontWheelPin = 11;  
 const int backWheelPin = 12; 
+const int joystickPin = 13;
+
+OneButton joyStickButton(joystickPin, true);
 
 // --------+++= [Analogue Inputs] =+++--------
 const int joystickX = A0; // Yaw control
@@ -94,12 +98,11 @@ boolean fineControl = false;
 
 // Firing
 int flywheelsSpeed = 0;
-int feedPosition = 30;  // Default position
 boolean flywheelsEnabled = true;
 int potValue;
 
 #define STARTPOS  30
-#define FINALPOS 120
+#define FINALPOS 125
 #define FIREDELAY (300UL)
 int fireState = 0;
 bool isFiring = false;
@@ -141,6 +144,8 @@ void fireEnd();
 // Handles the position changes of the firing arm
 void fireLoop();
 
+// Soft resets the board on button press
+void reset();
 
 //==============================================SETUP==============================================
 void setup() {
@@ -158,20 +163,20 @@ void setup() {
     // Initialize servos to neutral position
     yawServo.write(90);
     pitchServo.write(90);
-    feedServo.write(90);
+    feedServo.write(STARTPOS);
     flywheelsServo.write(0);
     frontWheel.write(90);
     backWheel.write(90);
 
     Serial.println("Servos initialized..."); 
 
-    Serial.println("Arming Sequence Begin...");
-    flywheelsServo.write(45);
-    delay(500);
-    flywheelsServo.write(150);
-    delay(500);
-    flywheelsServo.write(0);
-    Serial.println("Armed!!");
+    // Serial.println("Arming Sequence Begin...");
+    // flywheelsServo.write(45);
+    // delay(500);
+    // flywheelsServo.write(150);
+    // delay(500);
+    // flywheelsServo.write(0);
+    // Serial.println("Armed!!");
 
     // Initialize Buttons
     // Set button pins as input with pull-up resistors
@@ -182,13 +187,13 @@ void setup() {
 
 
     // dpadUp.attachClick(fire);
+    dpadUp.setPressMs((350UL));
     dpadUp.attachLongPressStart(fire);
     dpadUp.attachLongPressStop(fireEnd);
     dpadDown.attachClick(flywheelsToggle);
-    dpadLeft.attachClick(joystickToggle); //TODO: Determine something for this/move fire integration
-    dpadRight.attachClick(joystickToggle);
-
-    
+    dpadLeft.attachClick(reset); //TODO: Determine something for this/move fire integration
+    dpadRight.attachClick(reset);
+    joyStickButton.attachClick(joystickToggle);
 
     Serial.println("Buttons initialized..."); 
 
@@ -238,7 +243,7 @@ void loop() {
       if(fineJoyY > 515) {
         pitchSpeed = map(joyY, 515, 1023, 92, 100);
       } else {
-        pitchSpeed = map(joyY, 0, 510, 77, 87);
+        pitchSpeed = map(joyY, 0, 507, 77, 87);
       }
     } 
     else {
@@ -248,10 +253,10 @@ void loop() {
       } else {
         yawSpeed = map(joyX, 0, 514, 0, 90);
       }
-      if(joyY > 515) {
-        pitchSpeed = map(joyY, 515, 1023, 92, 180);
+      if(joyY > 514) {
+        pitchSpeed = map(joyY, 514, 1023, 92, 180);
       } else {
-        pitchSpeed = map(joyY, 0, 510, 0, 87);
+        pitchSpeed = map(joyY, 0, 506, 0, 87);
       }
     } 
 
@@ -269,13 +274,14 @@ void loop() {
 
     // --------+++= [Button Handling] =+++--------
     // Read buttons to see if there's an input - this could change values!
-    debounce(); //Read buttons with debouncing of the inputs
+    // debounce(); //Read buttons with debouncing of the inputs
 
     dpadUp.tick();
     fireLoop();
     dpadDown.tick();
     dpadLeft.tick();
     dpadRight.tick();
+    joyStickButton.tick();
 
     // if (!buttonState[0]) { Serial.println("Up Touched"); fire(); }
     // if (!buttonState[1]) { Serial.println("Down Touched"); } //joystickToggle();
@@ -285,7 +291,7 @@ void loop() {
     // --------+++= [Generate Servo Outputs] =+++--------
     yawServo.write(yawSpeed);
     pitchServo.write(pitchSpeed);
-    // feedServo.write(feedPosition);
+    if(isFiring == false) {feedServo.write(STARTPOS);} 
     frontWheel.write(frontWheelSpeed);
     backWheel.write(backWheelSpeed);
 
@@ -293,7 +299,7 @@ void loop() {
     flywheelsServo.write(flywheelsSpeed);
 
     // Debugging output
-    // Serial.println("");
+   
     // Serial.print(" | Feed Pos | "); Serial.print(feedPosition);
     // Serial.print(" | JoyX | "); Serial.print(joyX);
     // Serial.print(" | JoyY | "); Serial.print(joyY);
@@ -308,36 +314,11 @@ void loop() {
 
     // Serial.println("JoystickX: "); Serial.print(joystickX);
     // Serial.print(" | JoystickY: "); Serial.print(joystickY);
+    // if((currentMillis % 1000) < (500UL)) { Serial.println("Current Time:"); Serial.print(currentMillis); }
+    
 }
 
 //==========================================HELPER FUNCTIONs==========================================
-
-void debounce()
-{
-  // Serial.println("");
-  for (int i = 0; i < NUM_BUTTONS; i++) {
-    bool reading = digitalRead(buttonPins[i]);  // Read button state
-    // Serial.print(" | Button No "); Serial.print(i);
-    
-
-    if (reading != lastButtonState[i]) {
-        debouncePreviousMillis[i] = millis();  // Reset debounce timer
-        // Serial.print("NEW READING");
-    }
-
-    if ((millis() - debouncePreviousMillis[i]) > DEBOUNCE_DELAY) {
-      // Edge detection
-      if (reading != buttonState[i]) {
-        buttonState[i] = reading;  // Update only if stable
-    }
-      
-    }
-    lastButtonState[i] = reading;  // Save last raw reading
-    // Serial.print(" | State: | "); Serial.print(buttonState[i]);
-    // Serial.print(" | Last state: "); Serial.print(reading);
-  }
-}
-
 
 void stop()
 {
@@ -345,17 +326,15 @@ void stop()
   backWheelSpeed = WHEEL_NEUTRAL;
 }
 
+void reset() {
+  Serial.println("Reset Touched!");
+  wdt_enable(WDTO_15MS); // Enable watchdog timer with 15ms timeout
+  while (1); // Wait for watchdog to reset
+}
+
 void fire() {
-  
   Serial.println("Fire Touched");
   isFiring = true;
-
-  if(currentMillis - butPreviousMillis >= BUT_INTERVAL)
-  {
-    
-    butPreviousMillis = currentMillis;
-  }
-  
 }
 
 void fireEnd() {
@@ -369,30 +348,27 @@ void fireLoop() {
 
   switch (fireState) {
       case 0: // Move to STARTPOS
-          feedPosition = STARTPOS;
-          feedServo.write(feedPosition);
+          feedServo.write(STARTPOS);
           firePreviousMillis = currentMillis;
           fireState = 1;
-          Serial.println("State 0");
+          // Serial.println("State 0");
           break;
 
       case 1: // Wait, then move to FINALPOS
-          if (currentMillis - firePreviousMillis >= FIREDELAY) {
-            feedPosition = FINALPOS;  
-            feedServo.write(feedPosition);
+        if (currentMillis - firePreviousMillis >= FIREDELAY) { 
+            feedServo.write(FINALPOS);
               firePreviousMillis = currentMillis;
               fireState = 2;
-              Serial.println("State 1");
+              // Serial.println("State 1");
           }
           break;
 
       case 2: // Wait, then move back to STARTPOS
-          if (currentMillis - firePreviousMillis >= FIREDELAY) {
-            feedPosition = STARTPOS;  
+          if (currentMillis - firePreviousMillis >= FIREDELAY) { 
             firePreviousMillis = currentMillis;
-            feedServo.write(feedPosition);
+            feedServo.write(STARTPOS);
                 // isFiring = false; // Stop firing after cycle
-                Serial.println("State 2");
+                // Serial.println("State 2");
                 fireState = 0; // Reset state
                 
           }
@@ -433,10 +409,10 @@ void speedChange() {
     // TODO: Establish another function to use button inputs to quickly set speed to max/min
     
     // Ensure digit is within valid range
-    if (speed < 1 || speed > 4) { speed = 4; return;}
+    if (speed < 0 || speed > 1) { speed = 0; return;}
     
     // Detect forward rotation (Increase Speed)
-    if((mma.y / 4096.0f) <= -0.75f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL && speed < 4)
+    if((mma.y / 4096.0f) <= -0.75f && currentMillis - tiltPreviousMillis >= TILT_INTERVAL && speed < 1)
     {
         speed++;
         tiltPreviousMillis = currentMillis;
@@ -452,11 +428,11 @@ void speedChange() {
 
     
 
-    // Write the BCD bits to the 74LS47 inputs
-    digitalWrite(BCD_A, bcdLookup[speed][3]);
-    digitalWrite(BCD_B, bcdLookup[speed][2]);
-    digitalWrite(BCD_C, bcdLookup[speed][1]);
-    digitalWrite(BCD_D, bcdLookup[speed][0]);
+    // // Write the BCD bits to the 74LS47 inputs
+    // digitalWrite(BCD_A, bcdLookup[speed][3]);
+    // digitalWrite(BCD_B, bcdLookup[speed][2]);
+    // digitalWrite(BCD_C, bcdLookup[speed][1]);
+    // digitalWrite(BCD_D, bcdLookup[speed][0]);
 
     // Serial.println(speed);
 }
@@ -465,8 +441,8 @@ void speedChange() {
 void directionChange()
 {
   // Map our speed to the actual PWM values we send out
-  int maxSpeed = map(speed,1,4,WHEEL_NEUTRAL,WHEEL_TOP_SPEED);
-  int minSpeed = map(speed,1,4,WHEEL_NEUTRAL,WHEEL_BOTTOM_SPEED);
+  int maxSpeed = (speed == 1) ? WHEEL_TOP_SPEED : (WHEEL_TOP_SPEED - 15);
+  int minSpeed = (speed == 1) ? WHEEL_BOTTOM_SPEED : (WHEEL_BOTTOM_SPEED + 15);
   
   // Right
   if((mma.x / 4096.0f) >= 0.5f) {
